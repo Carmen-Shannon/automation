@@ -43,13 +43,12 @@ func parseXrandrOutput(output string) []Display {
 			var displayEntry Display
 			// checking for the connected displays example: eDP-1 connected primary 1920x1080+0+0
 			// Regular expression to match the resolution format
-			re := regexp.MustCompile(`\d+x\d+(?=\+)`)
+			re := regexp.MustCompile(`\d+x\d+\+\d+\+\d+`)
 			match := re.FindString(line)
 			if match != "" {
 				res := strings.Split(match, "x")
 				width, _ := strconv.Atoi(res[0])
-				heightSplit := strings.Split(res[1], "+")[0]
-				height, _ := strconv.Atoi(heightSplit)
+				height, _ := strconv.Atoi(res[1])
 				displayEntry.Width = width
 				displayEntry.Height = height
 				displays = append(displays, displayEntry)
