@@ -37,6 +37,7 @@ func DetectDisplays() ([]Display, error) {
 func parseXrandrOutput(output string) []Display {
     lines := strings.Split(output, "\n")
     var displays []Display
+	var currentDisplay *Display
 
     for _, line := range lines {
 		if strings.Contains(line," connected") {
@@ -48,10 +49,21 @@ func parseXrandrOutput(output string) []Display {
 			if match != "" {
 				res := strings.Split(match, "x")
 				width, _ := strconv.Atoi(res[0])
-				height, _ := strconv.Atoi(res[1])
+				heightSplit := strings.Split(res[1], "+")[0]
+				height, _ := strconv.Atoi(heightSplit)
 				displayEntry.Width = width
 				displayEntry.Height = height
-				displays = append(displays, displayEntry)
+				currentDisplay = &displayEntry
+			}
+		} else if currentDisplay != nil && strings.Contains(line, "*+") {
+			re := regexp.MustCompile(`\d+\.\d+\*\+`)
+			match := re.FindString(line)
+			if match != "" {
+				refreshRateStr := strings.TrimSuffix(match, "*+")
+				refreshRate, _ := strconv.ParseFloat(refreshRateStr, 32)
+				currentDisplay.RefreshRate = float32(refreshRate)
+				displays = append(displays, *currentDisplay)
+				currentDisplay = nil
 			}
 		}
 	}
