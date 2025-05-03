@@ -11,10 +11,8 @@ package linux
 */
 import "C"
 import (
-	"automation/device/keyboard/key_codes"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"time"
 )
 
@@ -84,8 +82,4 @@ func ExecuteXdotoolKeyDown(keySym string) error {
 
 func ExecuteXdotoolKeyUp(keySym string) error {
 	return exec.Command("xdotool", "keyup", keySym).Run()
-}
-
-func KeyCodeToKeySym(keyCode key_codes.KeyCode) string {
-	return strconv.Itoa(int(keyCode))
 }
