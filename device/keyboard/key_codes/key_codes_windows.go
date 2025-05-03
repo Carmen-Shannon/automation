@@ -3,6 +3,8 @@
 
 package key_codes
 
+type KeyCode uint16
+
 const (
 	// Letters
 	KeyCodeA KeyCode = 0x41

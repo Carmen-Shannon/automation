@@ -3,12 +3,31 @@
 
 package linux
 
+/*
+#cgo LDFLAGS: -lX11
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <stdlib.h>
+*/
+import "C"
 import (
 	"automation/device/keyboard/key_codes"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"time"
 )
+
+// XKeysymToString converts an X KeySym value to its string representation.
+func XKeysymToString(keysym uint32) string {
+	// Call the XKeysymToString function from the X11 library
+	cStr := C.XKeysymToString(C.KeySym(keysym))
+	if cStr == nil {
+		return ""
+	}
+	// Convert the C string to a Go string
+	return C.GoString(cStr)
+}
 
 func ExecuteXrandr() ([]byte, error) {
 	return exec.Command("xrandr", "--query").Output()
@@ -68,5 +87,5 @@ func ExecuteXdotoolKeyUp(keySym string) error {
 }
 
 func KeyCodeToKeySym(keyCode key_codes.KeyCode) string {
-	return fmt.Sprintf("%x", keyCode)
+	return strconv.Itoa(int(keyCode))
 }

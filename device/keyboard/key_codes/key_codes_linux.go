@@ -3,6 +3,8 @@
 
 package key_codes
 
+type KeyCode uint32
+
 const (
 	// Letters
 	KeyCodeA KeyCode = 0x0061 // XK_a

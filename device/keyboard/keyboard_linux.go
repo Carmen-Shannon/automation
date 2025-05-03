@@ -19,7 +19,7 @@ func KeyPress(options ...KeyboardPressOption) error {
 		return errors.New("invalid key code entered")
 	}
 
-	keySym := linux.KeyCodeToKeySym(kbpOpt.KeyCode)
+	keySym := linux.XKeysymToString(uint32(kbpOpt.KeyCode))
 	err := linux.ExecuteXdotoolKeyDown(keySym)
 	if err != nil {
 		return err
