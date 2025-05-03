@@ -72,12 +72,12 @@ func (m *mouse) Move(options ...MouseMoveOption) error {
 
 func (m *mouse) Click(options ...MouseClickOption) error {
 	clickOptions := &mouseClickOption{}
-	// default to left click if no options are provided
-	if len(options) == 0 {
-		clickOptions.Left = true
-	}
 	for _, opt := range options {
 		opt(clickOptions)
+	}
+	// default to left click if no options are provided
+	if !clickOptions.Left && !clickOptions.Right && !clickOptions.Middle {
+		clickOptions.Left = true
 	}
 
 	// Combine all click events if multiple options are provided

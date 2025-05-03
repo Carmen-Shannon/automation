@@ -4,6 +4,7 @@
 package linux
 
 import (
+	"automation/device/keyboard/key_codes"
 	"fmt"
 	"os/exec"
 	"time"
@@ -56,4 +57,16 @@ func ExecuteXdotoolClick(button int, duration int) error {
 	}
 
 	return nil
+}
+
+func ExecuteXdotoolKeyDown(keySym string) error {
+	return exec.Command("xdotool", "keydown", keySym).Run()
+}
+
+func ExecuteXdotoolKeyUp(keySym string) error {
+	return exec.Command("xdotool", "keyup", keySym).Run()
+}
+
+func KeyCodeToKeySym(keyCode key_codes.KeyCode) string {
+	return fmt.Sprintf("0x%x", keyCode)
 }
