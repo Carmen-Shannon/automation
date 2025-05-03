@@ -5,6 +5,8 @@ package keyboard
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"time"
 
 	"automation/tools/linux"
@@ -15,12 +17,18 @@ func KeyPress(options ...KeyboardPressOption) error {
 	for _, opt := range options {
 		opt(kbpOpt)
 	}
-	if kbpOpt.KeyCode == 0 {
+	if slices.Contains(kbpOpt.KeyCodes, 0) {
 		return errors.New("invalid key code entered")
 	}
 
-	keySym := linux.XKeysymToString(uint32(kbpOpt.KeyCode))
-	err := linux.ExecuteXdotoolKeyDown(keySym)
+	action := []string{}
+	for _, keyCode := range kbpOpt.KeyCodes {
+		keySym := linux.XKeysymToString(uint32(keyCode))
+		action = append(action, keySym)
+	}
+
+	actionStr = strings.Join(action, "+")
+	err := linux.ExecuteXdotoolKeyDown(actionStr)
 	if err != nil {
 		return err
 	}
@@ -29,7 +37,7 @@ func KeyPress(options ...KeyboardPressOption) error {
 		time.Sleep(time.Duration(kbpOpt.Duration) * time.Millisecond)
 	}
 
-	err = linux.ExecuteXdotoolKeyUp(keySym)
+	err = linux.ExecuteXdotoolKeyUp(actionStr)
 	if err != nil {
 		return err
 	}

@@ -3,15 +3,15 @@ package keyboard
 import "automation/device/keyboard/key_codes"
 
 type keyboardPressOption struct {
-	KeyCode  key_codes.KeyCode
+	KeyCodes  []key_codes.KeyCode
 	Duration int
 }
 
 type KeyboardPressOption func(*keyboardPressOption)
 
-func KeyCodeOpt(keyCode key_codes.KeyCode) KeyboardPressOption {
+func KeyCodeOpt(keyCodes []key_codes.KeyCode) KeyboardPressOption {
 	return func(opt *keyboardPressOption) {
-		opt.KeyCode = keyCode
+		opt.KeyCodes = keyCodes
 	}
 }
 
