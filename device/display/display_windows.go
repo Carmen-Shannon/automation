@@ -75,7 +75,32 @@ type displayDevice struct {
 	DeviceKey    [128]uint16
 }
 
-func DetectDisplays() ([]Display, error) {
+func Init() VirtualScreen {
+	// Retrieve the virtual screen's top-left corner
+	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
+	bottom, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_YVIRTUALSCREEN))
+
+	// Retrieve the virtual screen's dimensions
+	right, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CXVIRTUALSCREEN))
+	top, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CYVIRTUALSCREEN))
+
+	// Construct the VirtualScreen struct
+	virtualScreen := virtualScreen{
+		Left:   int32(left),
+		Right:  int32(right),
+		Top:    int32(top),
+		Bottom: int32(bottom),
+	}
+	displays, err := virtualScreen.DetectDisplays()
+	if err != nil {
+		return &virtualScreen
+	}
+	virtualScreen.Displays = displays
+
+	return &virtualScreen
+}
+
+func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
 	var displays []Display
 	var device displayDevice
 	device.Size = uint32(unsafe.Sizeof(device))
@@ -112,30 +137,6 @@ func DetectDisplays() ([]Display, error) {
 		})
 
 	}
+	vs.Displays = displays
 	return displays, nil
-}
-
-func DetectVirtualScreen() (VirtualScreen, error) {
-	// Retrieve the virtual screen's top-left corner
-	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
-	bottom, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_YVIRTUALSCREEN))
-
-	// Retrieve the virtual screen's dimensions
-	right, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CXVIRTUALSCREEN))
-	top, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CYVIRTUALSCREEN))
-
-	// Construct the VirtualScreen struct
-	virtualScreen := VirtualScreen{
-		Left:   int32(left),
-		Right:  int32(right),
-		Top:    int32(top),
-		Bottom: int32(bottom),
-	}
-	displays, err := DetectDisplays()
-	if err != nil {
-		return virtualScreen, err
-	}
-	virtualScreen.Displays = displays
-
-	return virtualScreen, nil
 }

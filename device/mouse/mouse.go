@@ -9,7 +9,7 @@ type mouse struct {
 
 var (
 	// the virtual screen to use for mouse movement, cached on the first call to Move so it isn't initialized on every call
-	vs *display.VirtualScreen
+	vs display.VirtualScreen
 	// the primary display to use for mouse movement, cached on the first call to Move so it isn't initialized on every call
 	pd *display.Display
 )

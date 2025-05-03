@@ -1,0 +1,14 @@
+package main
+
+import (
+	"automation/device/display"
+	"fmt"
+)
+
+func main() {
+	vs := display.Init()
+	fmt.Printf("Virtual screen bounds: left: %d, right: %d, top: %d, bottom: %d\n", vs.GetLeft(), vs.GetRight(), vs.GetTop(), vs.GetBottom())
+	for _, d := range vs.GetDisplays() {
+		fmt.Printf("Display: x: %d, y: %d, width: %d, height: %d, refresh: %.2f, primary: %v\n", d.X, d.Y, d.Width, d.Height, d.RefreshRate, d.Primary)
+	}
+}

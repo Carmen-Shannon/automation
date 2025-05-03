@@ -31,32 +31,28 @@ func (m *mouse) Move(options ...MouseMoveOption) error {
 	for _, opt := range options {
 		opt(moveOptions)
 	}
+	// Get the virtual screen bounds
+	if vs == nil {
+		vs = display.Init()
+	}
 	// default to primary display if no options are provided
 	if moveOptions.Display == nil {
 		if pd == nil {
-			d, err := display.GetPrimaryDisplay()
+			d, err := vs.GetPrimaryDisplay()
 			if err != nil {
 				return err
 			}
 			pd = &d
 		}
-	}
-
-	// Get the virtual screen bounds
-	if vs == nil {
-		vsp, err := display.DetectVirtualScreen()
-		if err != nil {
-			return err
-		}
-		vs = &vsp
+		moveOptions.Display = pd
 	}
 
 	absoluteX := moveOptions.Display.X + int32(moveOptions.ToX)
 	absoluteY := moveOptions.Display.Y + int32(moveOptions.ToY)
 
 	// Validate the coordinates against the virtual screen bounds
-	if absoluteX < vs.Left || absoluteX > vs.Right ||
-		absoluteY < vs.Top || absoluteY > vs.Bottom {
+	if absoluteX < vs.GetLeft() || absoluteX > vs.GetRight() ||
+		absoluteY < vs.GetTop() || absoluteY > vs.GetBottom() {
 		return errors.New("coordinates are outside the virtual screen bounds for display")
 	}
 

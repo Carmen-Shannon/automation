@@ -4,7 +4,6 @@
 package display
 
 import (
-	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,7 +12,7 @@ import (
 )
 
 // DetectDisplays detects all connected displays and ensures the primary display is at index 0.
-func DetectDisplays() ([]Display, error) {
+func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
 	// Execute the `xrandr` command to get display information
 	output, err := linux.ExecuteXrandr()
 	if err != nil {
@@ -24,12 +23,13 @@ func DetectDisplays() ([]Display, error) {
 	return extractDisplaysFromXrandrOutput(string(output)), nil
 }
 
-func DetectVirtualScreen() (VirtualScreen, error) {
-	displays, err := DetectDisplays()
+func Init() VirtualScreen {
+	var virtualScreen virtualScreen
+	displays, err := virtualScreen.DetectDisplays()
 	if err != nil {
-		return VirtualScreen{}, err
+		return &virtualScreen
 	} else if len(displays) == 0 {
-		return VirtualScreen{}, errors.New("no displays found")
+		return &virtualScreen
 	}
 
 	left, top := displays[0].X, displays[0].Y
@@ -50,14 +50,14 @@ func DetectVirtualScreen() (VirtualScreen, error) {
 		}
 	}
 
-	virtualScreen := VirtualScreen{
+	virtualScreen = virtualScreen{
 		Left:     left,
 		Right:    right,
 		Top:      top,
 		Bottom:   bottom,
 		Displays: displays,
 	}
-	return virtualScreen, nil
+	return &virtualScreen
 
 }
 
