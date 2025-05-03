@@ -27,7 +27,7 @@ func KeyPress(options ...KeyboardPressOption) error {
 		action = append(action, keySym)
 	}
 
-	actionStr = strings.Join(action, "+")
+	actionStr := strings.Join(action, "+")
 	err := linux.ExecuteXdotoolKeyDown(actionStr)
 	if err != nil {
 		return err
