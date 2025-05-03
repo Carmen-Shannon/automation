@@ -68,5 +68,5 @@ func ExecuteXdotoolKeyUp(keySym string) error {
 }
 
 func KeyCodeToKeySym(keyCode key_codes.KeyCode) string {
-	return fmt.Sprintf("0x%x", keyCode)
+	return fmt.Sprintf("%x", keyCode)
 }
