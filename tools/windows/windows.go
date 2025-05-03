@@ -22,9 +22,9 @@ const (
 	SM_CYVIRTUALSCREEN = 79 // The height of the virtual screen
 
 	MOUSEEVENTF_LEFTDOWN   = 0x0002 // The left button is down flag
-    MOUSEEVENTF_LEFTUP     = 0x0004 // The left button is up flag
-    MOUSEEVENTF_RIGHTDOWN  = 0x0008 // The right button is down flag
-    MOUSEEVENTF_RIGHTUP    = 0x0010 // The right button is up flag
-    MOUSEEVENTF_MIDDLEDOWN = 0x0020 // The middle button is down flag
-    MOUSEEVENTF_MIDDLEUP   = 0x0040 // The middle button is up flag
+	MOUSEEVENTF_LEFTUP     = 0x0004 // The left button is up flag
+	MOUSEEVENTF_RIGHTDOWN  = 0x0008 // The right button is down flag
+	MOUSEEVENTF_RIGHTUP    = 0x0010 // The right button is up flag
+	MOUSEEVENTF_MIDDLEDOWN = 0x0020 // The middle button is down flag
+	MOUSEEVENTF_MIDDLEUP   = 0x0040 // The middle button is up flag
 )
