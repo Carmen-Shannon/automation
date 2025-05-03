@@ -32,21 +32,21 @@ func Init() VirtualScreen {
 		return &vs
 	}
 
-	left, top := displays[0].X, displays[0].Y
-	right, bottom := displays[0].X+int32(displays[0].Width), displays[0].Y+int32(displays[0].Height)
+	left, bottom := displays[0].X, displays[0].Y
+	right, top := displays[0].X+int32(displays[0].Width), displays[0].Y+int32(displays[0].Height)
 
 	for _, d := range displays {
 		if d.X < left {
 			left = d.X
 		}
-		if d.Y < top {
-			top = d.Y
+		if d.Y < bottom {
+			bottom = d.Y
 		}
 		if d.X+int32(d.Width) > right {
 			right = d.X + int32(d.Width)
 		}
-		if d.Y+int32(d.Height) > bottom {
-			bottom = d.Y + int32(d.Height)
+		if d.Y+int32(d.Height) > top {
+			top = d.Y + int32(d.Height)
 		}
 	}
 

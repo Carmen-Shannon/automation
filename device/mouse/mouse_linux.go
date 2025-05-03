@@ -52,7 +52,7 @@ func (m *mouse) Move(options ...MouseMoveOption) error {
 
 	// Validate the coordinates against the virtual screen bounds
 	if absoluteX < vs.GetLeft() || absoluteX > vs.GetRight() ||
-		absoluteY < vs.GetTop() || absoluteY > vs.GetBottom() {
+		absoluteY > vs.GetTop() || absoluteY < vs.GetBottom() {
 		return errors.New("coordinates are outside the virtual screen bounds for display")
 	}
 
