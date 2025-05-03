@@ -11,18 +11,18 @@ import (
 )
 
 func Init() *mouse {
-    var m mouse
+	var m mouse
 
-    x, y, err := linux.ExecuteXdotoolGetMousePosition()
+	x, y, err := linux.ExecuteXdotoolGetMousePosition()
 	if err != nil {
 		fmt.Println("failed to get the current mouse position: ", err.Error())
 		return &mouse{x: 0, y: 0}
 	}
 
-    // Initialize the mouse struct with the current position
-    m.x = x
-    m.y = y
-    return &m
+	// Initialize the mouse struct with the current position
+	m.x = x
+	m.y = y
+	return &m
 }
 
 func (m *mouse) Move(x, y int, displays ...display.Display) error {
@@ -55,7 +55,7 @@ func (m *mouse) Move(x, y int, displays ...display.Display) error {
 
 		// Validate the coordinates against the virtual screen bounds
 		if absoluteX < vs.Left || absoluteX > vs.Right ||
-			absoluteY > vs.Top || absoluteY < vs.Bottom {
+			absoluteY < vs.Top || absoluteY > vs.Bottom {
 			return errors.New("coordinates are outside the virtual screen bounds for display")
 		}
 
