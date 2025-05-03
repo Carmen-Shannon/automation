@@ -21,18 +21,27 @@ type Mouse interface {
 	// If the coordinates are outside of the display area bounds on any given display, then the function will return an error.
 	//
 	// Parameters:
-	//   - x: The x-coordinate to move the mouse to.
-	//   - y: The y-coordinate to move the mouse to.
-	//   - display: Optional list of displays to consider for the move operation.
-	//     If no displays are provided, the primary display is used.
+	//   - options: Optional parameters for the mouse movement, such as x and y as well as display and velocity.
 	//
 	// Returns:
 	//   - error: An error if the move operation fails, otherwise nil.
-	Move(x, y int, displays ...display.Display) error
+	Move(options ...MouseMoveOption) error
+
+	// Click performs a mouse click at the current mouse position.
+	// The default click is a left click with no duration, an instant click down and up.
+	// To modify this behavior, you can pass in a list of MouseClickOptions to customize the click action.
+	//
+	// Parameters:
+	//   - options: Optional parameters for the mouse click, such as button type and click count.
+	//
+	// Returns:
+	//   - error: An error if the click operation fails, otherwise nil.
+	Click(options ...MouseClickOption) error
 
 	// GetCurrentPosition retrieves the current position of the mouse cursor.
 	// The position is returned as a tuple of (x, y) coordinates.
-	// If the position cannot be determined, (0, 0) is returned
+	// If the position cannot be determined, (0, 0) is returned.
+	// The Init function should be called prior to calling this function, otherwise it will always return (0, 0)
 	//
 	// Returns:
 	//   - x: The current x-coordinate of the mouse cursor.

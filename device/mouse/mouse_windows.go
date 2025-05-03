@@ -8,6 +8,7 @@ import (
 	"automation/tools/windows"
 	"errors"
 	"fmt"
+	"time"
 	"unsafe"
 )
 
@@ -24,9 +25,13 @@ func Init() *mouse {
 }
 
 // Move moves the mouse to the specified coordinates on the given displays.
-func (m *mouse) Move(x, y int, displays ...display.Display) error {
-	// If no displays are provided, use the primary display
-	if len(displays) == 0 {
+func (m *mouse) Move(options ...MouseMoveOption) error {
+	moveOptions := &mouseMoveOption{ToX: 0, ToY: 0}
+	for _, opt := range options {
+		opt(moveOptions)
+	}
+	// default to primary display if no options are provided
+	if moveOptions.Display == nil {
 		if pd == nil {
 			d, err := display.GetPrimaryDisplay()
 			if err != nil {
@@ -34,7 +39,7 @@ func (m *mouse) Move(x, y int, displays ...display.Display) error {
 			}
 			pd = &d
 		}
-		displays = append(displays, *pd)
+		moveOptions.Display = pd
 	}
 
 	// Get the virtual screen bounds
@@ -46,28 +51,60 @@ func (m *mouse) Move(x, y int, displays ...display.Display) error {
 		vs = &vsp
 	}
 
-	for _, d := range displays {
-		// Calculate the absolute position relative to the display
-		absoluteX := d.X + int32(x)
-		absoluteY := d.Y + int32(y)
+	absoluteX := moveOptions.Display.X + int32(moveOptions.ToX)
+	absoluteY := moveOptions.Display.Y + int32(moveOptions.ToY)
 
-		// Validate the coordinates against the virtual screen bounds
-		if (absoluteX < vs.Left || absoluteX > vs.Right) ||
-			(absoluteY > vs.Top || absoluteY < vs.Bottom) {
-			fmt.Printf("absoluteX: %d, absoluteY: %d, vs.Left: %d, vs.Right: %d, vs.Top: %d, vs.Bottom: %d\n", absoluteX, absoluteY, vs.Left, vs.Right, vs.Top, vs.Bottom)
-			return errors.New("coordinates are outside the virtual screen bounds for display")
-		}
-
-		// Call SetCursorPos to move the mouse
-		ret, _, err := windows.SetCursorPos.Call(uintptr(absoluteX), uintptr(absoluteY))
-		if ret == 0 {
-			return errors.New("failed to move the mouse: " + err.Error())
-		}
-
-		// Update the internal mouse position
-		m.x = absoluteX
-		m.y = absoluteY
+	// Validate the coordinates against the virtual screen bounds
+	if (absoluteX < vs.Left || absoluteX > vs.Right) ||
+		(absoluteY > vs.Top || absoluteY < vs.Bottom) {
+		return errors.New("coordinates are outside the virtual screen bounds for display")
 	}
+
+	ret, _, err := windows.SetCursorPos.Call(uintptr(absoluteX), uintptr(absoluteY))
+	if ret == 0 {
+		return errors.New("failed to move the mouse: " + err.Error())
+	}
+
+	m.x = absoluteX
+	m.y = absoluteY
+	return nil
+}
+
+func (m *mouse) Click(options ...MouseClickOption) error {
+	clickOptions := &mouseClickOption{}
+	// default to left click if no options are provided
+	if len(options) == 0 {
+		clickOptions.Left = true
+	}
+	for _, opt := range options {
+		opt(clickOptions)
+	}
+
+	// Combine all click events if multiple options are provided
+	var downFlags, upFlags uintptr
+	if clickOptions.Left {
+		downFlags |= windows.MOUSEEVENTF_LEFTDOWN
+		upFlags |= windows.MOUSEEVENTF_LEFTUP
+	}
+	if clickOptions.Right {
+		downFlags |= windows.MOUSEEVENTF_RIGHTDOWN
+		upFlags |= windows.MOUSEEVENTF_RIGHTUP
+	}
+	if clickOptions.Middle {
+		downFlags |= windows.MOUSEEVENTF_MIDDLEDOWN
+		upFlags |= windows.MOUSEEVENTF_MIDDLEUP
+	}
+
+	// Perform the click down event
+	windows.MouseEvent.Call(downFlags, 0, 0, 0, 0)
+
+	// Add delay if DurationOpt is specified
+	if clickOptions.Duration > 0 {
+		time.Sleep(time.Duration(clickOptions.Duration) * time.Millisecond)
+	}
+
+	// Perform the click up event
+	windows.MouseEvent.Call(upFlags, 0, 0, 0, 0)
 
 	return nil
 }

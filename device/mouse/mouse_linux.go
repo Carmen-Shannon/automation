@@ -25,9 +25,14 @@ func Init() *mouse {
 	return &m
 }
 
-func (m *mouse) Move(x, y int, displays ...display.Display) error {
+func (m *mouse) Move(options ...MouseMoveOption) error {
+	moveOptions := &mouseMoveOption{ToX: 0, ToY: 0}
 	// If no displays are provided, use the primary display
-	if len(displays) == 0 {
+	for _, opt := range options {
+		opt(moveOptions)
+	}
+	// default to primary display if no options are provided
+	if moveOptions.Display == nil {
 		if pd == nil {
 			d, err := display.GetPrimaryDisplay()
 			if err != nil {
@@ -35,7 +40,6 @@ func (m *mouse) Move(x, y int, displays ...display.Display) error {
 			}
 			pd = &d
 		}
-		displays = append(displays, *pd)
 	}
 
 	// Get the virtual screen bounds
@@ -47,27 +51,58 @@ func (m *mouse) Move(x, y int, displays ...display.Display) error {
 		vs = &vsp
 	}
 
-	// Iterate through the provided displays
-	for _, d := range displays {
-		// Calculate the absolute position relative to the display
-		absoluteX := d.X + int32(x)
-		absoluteY := d.Y + int32(y)
+	absoluteX := moveOptions.Display.X + int32(moveOptions.ToX)
+	absoluteY := moveOptions.Display.Y + int32(moveOptions.ToY)
 
-		// Validate the coordinates against the virtual screen bounds
-		if absoluteX < vs.Left || absoluteX > vs.Right ||
-			absoluteY < vs.Top || absoluteY > vs.Bottom {
-			return errors.New("coordinates are outside the virtual screen bounds for display")
-		}
+	// Validate the coordinates against the virtual screen bounds
+	if absoluteX < vs.Left || absoluteX > vs.Right ||
+		absoluteY < vs.Top || absoluteY > vs.Bottom {
+		return errors.New("coordinates are outside the virtual screen bounds for display")
+	}
 
-		// Execute xdotool to move the mouse
-		err := linux.ExecuteXdotoolMouseMove(absoluteX, absoluteY)
+	// Execute xdotool to move the mouse
+	err := linux.ExecuteXdotoolMouseMove(absoluteX, absoluteY)
+	if err != nil {
+		return fmt.Errorf("failed to move mouse: %w", err)
+	}
+
+	// Update the internal mouse position
+	m.x = absoluteX
+	m.y = absoluteY
+
+	return nil
+}
+
+func (m *mouse) Click(options ...MouseClickOption) error {
+	clickOptions := &mouseClickOption{}
+	// Default to left click if no options are provided
+	if len(options) == 0 {
+		clickOptions.Left = true
+	}
+	for _, opt := range options {
+		opt(clickOptions)
+	}
+
+	// Perform the click(s) based on the options
+	if clickOptions.Left {
+		err := linux.ExecuteXdotoolClick(1, clickOptions.Duration)
 		if err != nil {
-			return fmt.Errorf("failed to move mouse: %w", err)
+			return fmt.Errorf("failed to perform left click: %w", err)
 		}
+	}
 
-		// Update the internal mouse position
-		m.x = absoluteX
-		m.y = absoluteY
+	if clickOptions.Right {
+		err := linux.ExecuteXdotoolClick(3, clickOptions.Duration)
+		if err != nil {
+			return fmt.Errorf("failed to perform right click: %w", err)
+		}
+	}
+
+	if clickOptions.Middle {
+		err := linux.ExecuteXdotoolClick(2, clickOptions.Duration)
+		if err != nil {
+			return fmt.Errorf("failed to perform middle click: %w", err)
+		}
 	}
 
 	return nil
