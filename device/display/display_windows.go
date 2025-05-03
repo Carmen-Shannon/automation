@@ -85,19 +85,19 @@ func Init() VirtualScreen {
 	top, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CYVIRTUALSCREEN))
 
 	// Construct the VirtualScreen struct
-	virtualScreen := virtualScreen{
+	vs := virtualScreen{
 		Left:   int32(left),
 		Right:  int32(right),
 		Top:    int32(top),
 		Bottom: int32(bottom),
 	}
-	displays, err := virtualScreen.DetectDisplays()
+	displays, err := vs.DetectDisplays()
 	if err != nil {
-		return &virtualScreen
+		return &vs
 	}
-	virtualScreen.Displays = displays
+	vs.Displays = displays
 
-	return &virtualScreen
+	return &vs
 }
 
 func (vs *virtualScreen) DetectDisplays() ([]Display, error) {

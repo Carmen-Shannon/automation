@@ -24,12 +24,12 @@ func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
 }
 
 func Init() VirtualScreen {
-	var virtualScreen virtualScreen
-	displays, err := virtualScreen.DetectDisplays()
+	var vs virtualScreen
+	displays, err := vs.DetectDisplays()
 	if err != nil {
-		return &virtualScreen
+		return &vs
 	} else if len(displays) == 0 {
-		return &virtualScreen
+		return &vs
 	}
 
 	left, top := displays[0].X, displays[0].Y
@@ -50,14 +50,14 @@ func Init() VirtualScreen {
 		}
 	}
 
-	virtualScreen = virtualScreen{
+	vs = virtualScreen{
 		Left:     left,
 		Right:    right,
 		Top:      top,
 		Bottom:   bottom,
 		Displays: displays,
 	}
-	return &virtualScreen
+	return &vs
 
 }
 
