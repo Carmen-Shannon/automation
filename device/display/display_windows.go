@@ -4,7 +4,7 @@
 package display
 
 import (
-	"syscall"
+	"automation/tools/windows"
 	"unsafe"
 )
 
@@ -67,19 +67,13 @@ type devMode struct {
 
 // displayDevice represents the DISPLAY_DEVICE structure.
 type displayDevice struct {
-	Size         uint32      `json:"size"`
-	DeviceName   [32]uint16  `json:"device_name"`
-	DeviceString [128]uint16 `json:"device_string"`
-	StateFlags   uint32      `json:"state_flags"`
-	DeviceID     [128]uint16 `json:"device_id"`
-	DeviceKey    [128]uint16 `json:"device_key"`
+	Size         uint32
+	DeviceName   [32]uint16
+	DeviceString [128]uint16
+	StateFlags   uint32
+	DeviceID     [128]uint16
+	DeviceKey    [128]uint16
 }
-
-var (
-	user32              = syscall.NewLazyDLL("user32.dll")
-	enumDisplayDevices  = user32.NewProc("EnumDisplayDevicesW")
-	enumDisplaySettings = user32.NewProc("EnumDisplaySettingsW")
-)
 
 func DetectDisplays() ([]Display, error) {
 	var displays []Display
@@ -87,7 +81,7 @@ func DetectDisplays() ([]Display, error) {
 	device.Size = uint32(unsafe.Sizeof(device))
 
 	for i := 0; ; i++ {
-		ret, _, _ := enumDisplayDevices.Call(0, uintptr(i), uintptr(unsafe.Pointer(&device)), uintptr(0x00000001))
+		ret, _, _ := windows.EnumDisplayDevices.Call(0, uintptr(i), uintptr(unsafe.Pointer(&device)), uintptr(0x00000001))
 		if ret == 0 {
 			break
 		}
@@ -99,17 +93,49 @@ func DetectDisplays() ([]Display, error) {
 
 		var dm devMode
 		dm.Size = uint16(unsafe.Sizeof(dm))
-		ret, _, _ = enumDisplaySettings.Call(uintptr(unsafe.Pointer(&device.DeviceName)), uintptr(0xFFFFFFFF), uintptr(unsafe.Pointer(&dm)))
+		ret, _, _ = windows.EnumDisplaySettings.Call(uintptr(unsafe.Pointer(&device.DeviceName)), uintptr(0xFFFFFFFF), uintptr(unsafe.Pointer(&dm)))
 		if ret == 0 {
 			continue
 		}
+		var primary bool
+		if dm.PositionX == 0 && dm.PositionY == 0 {
+			primary = true
+		}
 
 		displays = append(displays, Display{
+			X:           dm.PositionX,
+			Y:           dm.PositionY,
 			Width:       int(dm.PelsWidth),
 			Height:      int(dm.PelsHeight),
 			RefreshRate: float32(dm.DisplayFrequency),
+			Primary:     primary,
 		})
 
 	}
 	return displays, nil
+}
+
+func DetectVirtualScreen() (VirtualScreen, error) {
+	// Retrieve the virtual screen's top-left corner
+	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
+	bottom, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_YVIRTUALSCREEN))
+
+	// Retrieve the virtual screen's dimensions
+	right, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CXVIRTUALSCREEN))
+	top, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_CYVIRTUALSCREEN))
+
+	// Construct the VirtualScreen struct
+	virtualScreen := VirtualScreen{
+		Left:   int32(left),
+		Right:  int32(right),
+		Top:    int32(top),
+		Bottom: int32(bottom),
+	}
+	displays, err := DetectDisplays()
+	if err != nil {
+		return virtualScreen, err
+	}
+	virtualScreen.Displays = displays
+
+	return virtualScreen, nil
 }

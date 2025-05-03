@@ -4,55 +4,96 @@
 package display
 
 import (
-	"os/exec"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"automation/tools/linux"
 )
 
 // DetectDisplays detects all connected displays and ensures the primary display is at index 0.
 func DetectDisplays() ([]Display, error) {
 	// Execute the `xrandr` command to get display information
-	output, err := exec.Command("xrandr", "--query").Output()
+	output, err := linux.ExecuteXrandr()
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse the output of the xrandr command
-	displays := parseXrandrOutput(string(output))
+	return extractDisplaysFromXrandrOutput(string(output)), nil
+}
 
-	// Ensure the primary display is at index 0
-	for i, display := range displays {
-		if display.Width > 0 && display.Height > 0 && display.RefreshRate > 0 {
-			// Move primary display to the first position
-			displays[0], displays[i] = displays[i], displays[0]
-			break
+func DetectVirtualScreen() (VirtualScreen, error) {
+	displays, err := DetectDisplays()
+	if err != nil {
+		return VirtualScreen{}, err
+	} else if len(displays) == 0 {
+		return VirtualScreen{}, errors.New("no displays found")
+	}
+
+	left, top := displays[0].X, displays[0].Y
+	right, bottom := displays[0].X+int32(displays[0].Width), displays[0].Y+int32(displays[0].Height)
+
+	for _, d := range displays {
+		if d.X < left {
+			left = d.X
+		}
+		if d.Y < top {
+			top = d.Y
+		}
+		if d.X+int32(d.Width) > right {
+			right = d.X + int32(d.Width)
+		}
+		if d.Y+int32(d.Height) > bottom {
+			bottom = d.Y + int32(d.Height)
 		}
 	}
 
-	return displays, nil
+	virtualScreen := VirtualScreen{
+		Left:     left,
+		Right:    right,
+		Top:      top,
+		Bottom:   bottom,
+		Displays: displays,
+	}
+	return virtualScreen, nil
+
 }
 
-// parseXrandrOutput parses the output of the `xrandr --query` command and returns a slice of Display structs.
-func parseXrandrOutput(output string) []Display {
-    lines := strings.Split(output, "\n")
-    var displays []Display
+func extractDisplaysFromXrandrOutput(output string) []Display {
+	lines := strings.Split(output, "\n")
+	var displays []Display
 	var currentDisplay *Display
 
-    for _, line := range lines {
-		if strings.Contains(line," connected") {
+	for _, line := range lines {
+		if isDisplayDetails(line) {
 			var displayEntry Display
+			if isPrimaryDisplay(line) {
+				displayEntry.Primary = true
+			}
 			// checking for the connected displays example: eDP-1 connected primary 1920x1080+0+0
 			// Regular expression to match the resolution format
 			re := regexp.MustCompile(`\d+x\d+\+\d+\+\d+`)
 			match := re.FindString(line)
 			if match != "" {
+				match = strings.Split(match, " ")[0]
 				res := strings.Split(match, "x")
+				// at this point res looks like ["1920","1080+0+-69"]
 				width, _ := strconv.Atoi(res[0])
-				heightSplit := strings.Split(res[1], "+")[0]
-				height, _ := strconv.Atoi(heightSplit)
+				yRes := strings.Split(res[1], "+")
+				// at this point yRes looks like ["1080","0","-69"]
+				height, _ := strconv.Atoi(yRes[0])
+				x, _ := strconv.ParseInt(yRes[1], 10, 32)
+				y, _ := strconv.ParseInt(yRes[2], 10, 32)
+
 				displayEntry.Width = width
 				displayEntry.Height = height
+				displayEntry.X = int32(x)
+				displayEntry.Y = int32(y)
+				if x == 0 && y == 0 {
+					displayEntry.Primary = true
+				}
 				currentDisplay = &displayEntry
 			}
 		} else if currentDisplay != nil && strings.Contains(line, "*+") {
@@ -68,5 +109,13 @@ func parseXrandrOutput(output string) []Display {
 		}
 	}
 
-    return displays
+	return displays
+}
+
+func isDisplayDetails(xrandrOutput string) bool {
+	return strings.Contains(xrandrOutput, " connected ")
+}
+
+func isPrimaryDisplay(xrandrOutput string) bool {
+	return strings.Contains(xrandrOutput, " primary ")
 }
