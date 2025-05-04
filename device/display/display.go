@@ -27,7 +27,7 @@ type VirtualScreen interface {
 	//   - options: Optional parameters for the display capture, such as the display to capture.
 	//
 	// Returns:
-	//   - []byte: A byte slice containing the bitmap data of the captured screen.
+	//   - [][]byte: A byte slice containing the bitmap data of the captured screen.
 	//   - error: An error if the capture fails.
 	CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error)
 
