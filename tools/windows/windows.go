@@ -4,6 +4,7 @@
 package windows
 
 import (
+	"fmt"
 	"syscall"
 )
 
@@ -17,18 +18,22 @@ var (
 	GetCursorPos        = User32.NewProc("GetCursorPos")
 	MouseEvent          = User32.NewProc("mouse_event")
 	KeybdEvent          = User32.NewProc("keybd_event")
-	GetDC               = User32.NewProc("GetDC")
+	getDC               = User32.NewProc("GetDC")
 	ReleaseDC           = User32.NewProc("ReleaseDC")
+	MonitorFromRect     = User32.NewProc("MonitorFromRect")
+	MonitorFromWindow   = User32.NewProc("MonitorFromWindow")
+	EnumWindows         = User32.NewProc("EnumWindows")
 
 	// GDI32 DLL calls
 	Gdi32                  = syscall.NewLazyDLL("gdi32.dll")
-	CreateCompatibleDC     = Gdi32.NewProc("CreateCompatibleDC")
+	createCompatibleDC     = Gdi32.NewProc("CreateCompatibleDC")
 	DeleteDC               = Gdi32.NewProc("DeleteDC")
-	CreateCompatibleBitmap = Gdi32.NewProc("CreateCompatibleBitmap")
-	SelectObject           = Gdi32.NewProc("SelectObject")
+	createCompatibleBitmap = Gdi32.NewProc("CreateCompatibleBitmap")
+	selectObject           = Gdi32.NewProc("SelectObject")
 	DeleteObject           = Gdi32.NewProc("DeleteObject")
-	BitBlt                 = Gdi32.NewProc("BitBlt")
+	bitBlt                 = Gdi32.NewProc("BitBlt")
 	GetDIBits              = Gdi32.NewProc("GetDIBits")
+	GetDeviceCaps          = Gdi32.NewProc("GetDeviceCaps")
 )
 
 const (
@@ -54,7 +59,81 @@ const (
 	KEYEVENTF_SCANCODE    = 0x0008 // Scan code flag for keyboard input
 
 	// GDI constants
-	SRCCOPY        = 0x00CC0020
-	BI_RGB         = 0
-	DIB_RGB_COLORS = 0
+	SRCCOPY                  = 0x00CC0020
+	BI_RGB                   = 0
+	DIB_RGB_COLORS           = 0
+	LOGPIXELSX               = 88         // Logical pixels/inch in the X direction
+	LOGPIXELSY               = 90         // Logical pixels/inch in the Y direction
+	MONITOR_DEFAULTTONEAREST = 0x00000002 // Default monitor option for MonitorFromRect function
 )
+
+type BitmapInfoHeader struct {
+	BiSize          uint32
+	BiWidth         int32
+	BiHeight        int32
+	BiPlanes        uint16
+	BiBitCount      uint16
+	BiCompression   uint32
+	BiSizeImage     uint32
+	BiXPelsPerMeter int32
+	BiYPelsPerMeter int32
+	BiClrUsed       uint32
+	BiClrImportant  uint32
+}
+
+type BitmapInfo struct {
+	BmiHeader BitmapInfoHeader
+	BmiColors [1]uint32
+}
+
+type BitmapHeader struct {
+	Type      uint16
+	Size      uint32
+	Reserved1 uint16
+	Reserved2 uint16
+	OffBits   uint32
+}
+
+func GetScreenDC() (uintptr, error) {
+	hdc, _, err := getDC.Call(0)
+	if hdc == 0 {
+		return 0, fmt.Errorf("failed to get screen device context: %w", err)
+	}
+	return hdc, nil
+}
+
+func CreateMemoryDC(hdc uintptr) (uintptr, error) {
+	hdcMem, _, err := createCompatibleDC.Call(hdc)
+	if hdcMem == 0 {
+		return 0, fmt.Errorf("failed to create compatible device context: %w", err)
+	}
+	return hdcMem, nil
+}
+
+func CreateBitmap(hdc uintptr, width, height int) (uintptr, error) {
+	hBitmap, _, err := createCompatibleBitmap.Call(hdc, uintptr(width), uintptr(height))
+	if hBitmap == 0 {
+		return 0, fmt.Errorf("failed to create compatible bitmap: %w", err)
+	}
+	return hBitmap, nil
+}
+
+func SelectBitmap(hdc uintptr, hBitmap uintptr) (uintptr, error) {
+	oldBitmap, _, err := selectObject.Call(hdc, hBitmap)
+	if oldBitmap == 0 {
+		return 0, fmt.Errorf("failed to select bitmap into device context: %w", err)
+	}
+	return oldBitmap, nil
+}
+
+func CopyScreenToMemory(hdcDest, hdcSrc uintptr, xDest, yDest, width, height, xSrc, ySrc int) error {
+	ret, _, err := bitBlt.Call(
+		hdcDest, uintptr(xDest), uintptr(yDest), uintptr(width), uintptr(height),
+		hdcSrc, uintptr(xSrc), uintptr(ySrc),
+		uintptr(SRCCOPY),
+	)
+	if ret == 0 {
+		return fmt.Errorf("failed to copy screen contents: %w", err)
+	}
+	return nil
+}

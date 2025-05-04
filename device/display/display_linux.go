@@ -50,52 +50,8 @@ func Init() VirtualScreen {
 
 }
 
-func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error) {
-	displayCaptureOptions := &displayCaptureOption{}
-	for _, opt := range options {
-		opt(displayCaptureOptions)
-	}
-
-	// Parse the DisplayCaptureOption varargs
-	var displays []Display
-	if len(options) == 0 || len(displayCaptureOptions.Displays) == 0 {
-		// Default to capturing the primary display
-		for _, display := range vs.Displays {
-			if display.Primary {
-				displays = append(displays, display)
-				break
-			}
-		}
-		if len(displays) == 0 {
-			return nil, fmt.Errorf("no primary display found")
-		}
-	} else {
-		// Use the specified displays
-		displays = displayCaptureOptions.Displays
-	}
-
-	// Prepare a slice to hold the raw pixel data for each display
-	var bitmaps [][]byte
-
-	// Iterate over the displays and capture each one
-	for _, display := range displays {
-		// Use `xwd` to capture the screen contents for the specified display
-		xwdOutput, err := linux.CaptureXwd(display.X, display.Y, display.Width, display.Height)
-		if err != nil {
-			return nil, fmt.Errorf("failed to capture display %v: %w", display, err)
-		}
-
-		// Parse the raw pixel data from the `xwd` output
-		rawPixelData, err := linux.ExtractRawPixelData(xwdOutput, display.Width, display.Height)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract raw pixel data for display %v: %w", display, err)
-		}
-
-		// Append the raw pixel data to the result slice
-		bitmaps = append(bitmaps, rawPixelData)
-	}
-
-	return bitmaps, nil
+func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, error) {
+	return nil, nil
 }
 
 func (vs *virtualScreen) DetectDisplays() ([]Display, error) {

@@ -1,6 +1,10 @@
 package display
 
-import "errors"
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+)
 
 type Display struct {
 	X           int32
@@ -9,6 +13,77 @@ type Display struct {
 	Height      int
 	RefreshRate float32
 	Primary     bool
+}
+
+type BMP struct {
+	FileHeader bitmapHeader
+	InfoHeader bitmapInfoHeader
+	Data       []byte
+	Width      int
+	Height     int
+}
+
+// ToBinary serializes the BMP struct into a byte slice in BMP format.
+// It includes the file header, info header, and pixel data.
+// The function returns the serialized byte slice.
+//
+// Returns:
+//   - []byte: A byte slice containing the serialized BMP data.
+func (b *BMP) ToBinary() []byte {
+	// Create a buffer to hold the binary data
+	var buffer bytes.Buffer
+
+	// Serialize the file header
+	binary.Write(&buffer, binary.LittleEndian, b.FileHeader.Type)      // 'BM'
+	binary.Write(&buffer, binary.LittleEndian, b.FileHeader.Size)      // File size
+	binary.Write(&buffer, binary.LittleEndian, b.FileHeader.Reserved1) // Reserved1
+	binary.Write(&buffer, binary.LittleEndian, b.FileHeader.Reserved2) // Reserved2
+	binary.Write(&buffer, binary.LittleEndian, b.FileHeader.OffBits)   // Offset to pixel data
+
+	// Serialize the info header
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiSize)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiWidth)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiHeight)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiPlanes)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiBitCount)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiCompression)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiSizeImage)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiXPelsPerMeter)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiYPelsPerMeter)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiClrUsed)
+	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiClrImportant)
+
+	// Append the pixel data
+	buffer.Write(b.Data)
+
+	return buffer.Bytes()
+}
+
+type bitmapInfoHeader struct {
+	BiSize          uint32
+	BiWidth         int32
+	BiHeight        int32
+	BiPlanes        uint16
+	BiBitCount      uint16
+	BiCompression   uint32
+	BiSizeImage     uint32
+	BiXPelsPerMeter int32
+	BiYPelsPerMeter int32
+	BiClrUsed       uint32
+	BiClrImportant  uint32
+}
+
+type bitmapInfo struct {
+	BmiHeader bitmapInfoHeader
+	BmiColors [1]uint32
+}
+
+type bitmapHeader struct {
+	Type      uint16
+	Size      uint32
+	Reserved1 uint16
+	Reserved2 uint16
+	OffBits   uint32
 }
 
 type virtualScreen struct {
@@ -29,7 +104,7 @@ type VirtualScreen interface {
 	// Returns:
 	//   - [][]byte: A byte slice containing the bitmap data of the captured screen.
 	//   - error: An error if the capture fails.
-	CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error)
+	CaptureBmp(options ...DisplayCaptureOption) ([]BMP, error)
 
 	// DetectDisplays detects all displays connected to the system and returns a slice of display structs.
 	// It also modifies the virtual screen Displays field to include the detected displays.

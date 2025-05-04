@@ -4,9 +4,10 @@
 package display
 
 import (
-	"automation/tools/windows"
 	"fmt"
 	"unsafe"
+
+	"automation/tools/windows"
 )
 
 // rect represents a rectangle with coordinates for the display.
@@ -76,25 +77,6 @@ type displayDevice struct {
 	DeviceKey    [128]uint16
 }
 
-type bitmapInfoHeader struct {
-	BiSize          uint32
-	BiWidth         int32
-	BiHeight        int32
-	BiPlanes        uint16
-	BiBitCount      uint16
-	BiCompression   uint32
-	BiSizeImage     uint32
-	BiXPelsPerMeter int32
-	BiYPelsPerMeter int32
-	BiClrUsed       uint32
-	BiClrImportant  uint32
-}
-
-type bitmapInfo struct {
-	BmiHeader bitmapInfoHeader
-	BmiColors [1]uint32
-}
-
 func Init() VirtualScreen {
 	// Retrieve the virtual screen's top-left corner
 	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
@@ -120,93 +102,132 @@ func Init() VirtualScreen {
 	return &vs
 }
 
-func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error) {
+func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, error) {
 	displayCaptureOptions := &displayCaptureOption{}
 	for _, opt := range options {
 		opt(displayCaptureOptions)
 	}
+	if displayCaptureOptions.BitCount == 0 {
+		displayCaptureOptions.BitCount = 24 // Default to 24 bits per pixel if not specified
+	}
 
-	// Parse the DisplayCaptureOption varargs
 	var displays []Display
-	if len(options) == 0 || len(displayCaptureOptions.Displays) == 0 {
-		// Default to capturing the primary display
+	if len(displayCaptureOptions.Displays) == 0 {
+		fmt.Println("wtf")
 		pd, err := vs.GetPrimaryDisplay()
 		if err != nil {
 			return nil, err
 		}
 		displays = append(displays, pd)
 	} else {
-		// Use the specified displays
 		displays = displayCaptureOptions.Displays
 	}
 
-	// Prepare a slice to hold the bitmap data for each display
-	var bitmaps [][]byte
-
-	// Iterate over the displays and capture each one
+	var bitmaps []BMP
 	for _, display := range displays {
-		// Get the device context of the screen
-		hdcScreen, _, err := windows.GetDC.Call(0)
-		if hdcScreen == 0 {
-			return nil, fmt.Errorf("failed to get screen device context: %w", err)
+		// Get the device context of the entire screen
+		hdcScreen, err := windows.GetScreenDC()
+		if err != nil {
+			return nil, err
 		}
 		defer windows.ReleaseDC.Call(0, hdcScreen)
 
 		// Create a compatible device context
-		hdcMem, _, err := windows.CreateCompatibleDC.Call(hdcScreen)
-		if hdcMem == 0 {
-			return nil, fmt.Errorf("failed to create compatible device context: %w", err)
+		hdcMem, err := windows.CreateMemoryDC(hdcScreen)
+		if err != nil {
+			return nil, err
 		}
 		defer windows.DeleteDC.Call(hdcMem)
 
-		// Calculate the width and height of the display
-		width := display.Width
-		height := display.Height
+		var left, top, right, bottom int32
+		if displayCaptureOptions.Bounds != [4]int32{} {
+			// Use the specified bounds, adjusted to be relative to the current display
+			left = display.X + displayCaptureOptions.Bounds[0]
+			right = display.X + displayCaptureOptions.Bounds[1]
+			top = display.Y + displayCaptureOptions.Bounds[2]
+			bottom = display.Y + displayCaptureOptions.Bounds[3]
+		} else {
+			// Default to the entire display
+			left = display.X
+			top = display.Y
+			right = display.X + int32(display.Width)
+			bottom = display.Y + int32(display.Height)
+		}
+
+		// Debugging: Log the bounds
+		fmt.Printf("Display: %+v\n", display)
+		fmt.Printf("Bounds: left=%d, top=%d, right=%d, bottom=%d\n", left, top, right, bottom)
+
+		// Calculate the width and height based on the bounds
+		width := int(right - left)
+		height := int(bottom - top)
+		if width <= 0 || height <= 0 {
+			return nil, fmt.Errorf("invalid capture bounds: width=%d, height=%d", width, height)
+		}
 
 		// Create a compatible bitmap
-		hBitmap, _, err := windows.CreateCompatibleBitmap.Call(hdcScreen, uintptr(width), uintptr(height))
-		if hBitmap == 0 {
-			return nil, fmt.Errorf("failed to create compatible bitmap: %w", err)
+		hBitmap, err := windows.CreateBitmap(hdcScreen, width, height)
+		if err != nil {
+			return nil, err
 		}
 		defer windows.DeleteObject.Call(hBitmap)
 
 		// Select the bitmap into the memory device context
-		oldBitmap, _, err := windows.SelectObject.Call(hdcMem, hBitmap)
-		if oldBitmap == 0 {
-			return nil, fmt.Errorf("failed to select bitmap into device context: %w", err)
+		oldBitmap, err := windows.SelectBitmap(hdcMem, hBitmap)
+		if err != nil {
+			return nil, err
 		}
-		defer windows.SelectObject.Call(hdcMem, oldBitmap)
+		defer func() {
+			_, _ = windows.SelectBitmap(hdcMem, oldBitmap)
+		}()
+
+		// Adjust source coordinates for BitBlt
+		sourceX := left
+		sourceY := top
+
+		// Debugging: Log the source coordinates
+		fmt.Printf("Source Coordinates: sourceX=%d, sourceY=%d\n", sourceX, sourceY)
 
 		// Copy the screen contents into the memory device context
-		ret, _, err := windows.BitBlt.Call(hdcMem, 0, 0, uintptr(width), uintptr(height), hdcScreen, uintptr(display.X), uintptr(display.Y), uintptr(windows.SRCCOPY))
-		if ret == 0 {
-			return nil, fmt.Errorf("failed to copy screen contents: %w", err)
-		}
+		err = windows.CopyScreenToMemory(hdcMem, hdcScreen, 0, 0, width, height, int(sourceX), int(sourceY))
+
+		dpiX, _, _ := windows.GetDeviceCaps.Call(hdcScreen, uintptr(windows.LOGPIXELSX)) // Horizontal DPI
+		dpiY, _, _ := windows.GetDeviceCaps.Call(hdcScreen, uintptr(windows.LOGPIXELSY)) // Vertical DPI
+
+		// Convert DPI to pixels per meter
+		pixelsPerMeterX := calcPixelsPerMeter(float64(dpiX))
+		pixelsPerMeterY := calcPixelsPerMeter(float64(dpiY))
 
 		// Retrieve the bitmap data
 		var bmpInfo bitmapInfo
-		bmpInfo.BmiHeader.BiSize = uint32(unsafe.Sizeof(bmpInfo.BmiHeader))
-		bmpInfo.BmiHeader.BiWidth = int32(width)
-		bmpInfo.BmiHeader.BiHeight = -int32(height) // Pnegative height for top-down DIB
-		bmpInfo.BmiHeader.BiPlanes = 1
-		bmpInfo.BmiHeader.BiBitCount = 32
-		bmpInfo.BmiHeader.BiCompression = windows.BI_RGB
+		infoHeader := buildBitMapInfoHeader(int32(width), int32(height), pixelsPerMeterX, pixelsPerMeterY, uint16(displayCaptureOptions.BitCount), windows.BI_RGB)
+		bmpInfo.BmiHeader = *infoHeader
 
-		// Calculate the size of the bitmap data
-		rowSize := (int(width)*4 + 3) & ^3 // Row size must be a multiple of 4 bytes
-		bitmapSize := rowSize * int(height)
+		bytesPerPixel := calcBytesPerPixel(displayCaptureOptions.BitCount)
+		bitmapSize := calcBmpSize(width, height, bytesPerPixel, displayCaptureOptions.BitCount)
 
 		// Allocate memory for the bitmap data
 		bitmapData := make([]byte, bitmapSize)
 
 		// Get the bitmap data
-		ret, _, err = windows.GetDIBits.Call(hdcMem, hBitmap, 0, uintptr(height), uintptr(unsafe.Pointer(&bitmapData[0])), uintptr(unsafe.Pointer(&bmpInfo)), uintptr(windows.DIB_RGB_COLORS))
+		ret, _, err := windows.GetDIBits.Call(
+			hdcMem, hBitmap, 0, uintptr(height),
+			uintptr(unsafe.Pointer(&bitmapData[0])),
+			uintptr(unsafe.Pointer(&bmpInfo)),
+			uintptr(windows.DIB_RGB_COLORS),
+		)
 		if ret == 0 {
 			return nil, fmt.Errorf("failed to retrieve bitmap data: %w", err)
 		}
 
-		// Append the complete BMP data to the result slice
-		bitmaps = append(bitmaps, bitmapData)
+		fileHeader := buildBitMapHeader(bmpInfo.BmiHeader.BiSize, uint32(len(bitmapData)))
+		bitmaps = append(bitmaps, BMP{
+			FileHeader: *fileHeader,
+			InfoHeader: bmpInfo.BmiHeader,
+			Data:       bitmapData,
+			Width:      width,
+			Height:     height,
+		})
 	}
 
 	return bitmaps, nil
