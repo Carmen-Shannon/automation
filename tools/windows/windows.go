@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	// User32 DLL calls
 	User32              = syscall.NewLazyDLL("user32.dll")
 	EnumDisplayDevices  = User32.NewProc("EnumDisplayDevicesW")
 	EnumDisplaySettings = User32.NewProc("EnumDisplaySettingsW")
@@ -16,6 +17,18 @@ var (
 	GetCursorPos        = User32.NewProc("GetCursorPos")
 	MouseEvent          = User32.NewProc("mouse_event")
 	KeybdEvent          = User32.NewProc("keybd_event")
+	GetDC               = User32.NewProc("GetDC")
+	ReleaseDC           = User32.NewProc("ReleaseDC")
+
+	// GDI32 DLL calls
+	Gdi32                  = syscall.NewLazyDLL("gdi32.dll")
+	CreateCompatibleDC     = Gdi32.NewProc("CreateCompatibleDC")
+	DeleteDC               = Gdi32.NewProc("DeleteDC")
+	CreateCompatibleBitmap = Gdi32.NewProc("CreateCompatibleBitmap")
+	SelectObject           = Gdi32.NewProc("SelectObject")
+	DeleteObject           = Gdi32.NewProc("DeleteObject")
+	BitBlt                 = Gdi32.NewProc("BitBlt")
+	GetDIBits              = Gdi32.NewProc("GetDIBits")
 )
 
 const (
@@ -39,4 +52,9 @@ const (
 	KEYEVENTF_KEYUP       = 0x0002 // Key up flag for keyboard input
 	KEYEVENTF_UNICODE     = 0x0004 // Unicode flag for keyboard input
 	KEYEVENTF_SCANCODE    = 0x0008 // Scan code flag for keyboard input
+
+	// GDI constants
+	SRCCOPY        = 0x00CC0020
+	BI_RGB         = 0
+	DIB_RGB_COLORS = 0
 )

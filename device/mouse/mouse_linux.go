@@ -10,7 +10,7 @@ import (
 	"fmt"
 )
 
-func Init() *mouse {
+func Init() Mouse {
 	var m mouse
 
 	x, y, err := linux.ExecuteXdotoolGetMousePosition()

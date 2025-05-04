@@ -2,13 +2,88 @@ package main
 
 import (
 	"automation/device/display"
+	"automation/device/keyboard"
+	"automation/device/keyboard/key_codes"
+	"automation/device/mouse"
 	"fmt"
+	"time"
 )
 
 func main() {
+	// clicking the mouse
+	m := mouse.Init()
+	err := m.Click(mouse.DurationOpt(100))
+	if err != nil {
+		fmt.Println("Error clicking mouse:", err)
+		return
+	}
+	fmt.Println("Mouse clicked successfully")
+
+	// type in Hello World
+	for _, opt := range helloWorld() {
+		err := keyboard.KeyPress(opt, keyboard.DurationOpt(50))
+		if err != nil {
+			fmt.Println("Error pressing key:", err)
+			return
+		}
+		fmt.Println("Key pressed successfully")
+	}
+
+	// get the virtual screen information, as well as display information
 	vs := display.Init()
 	fmt.Printf("Virtual screen bounds: left: %d, right: %d, top: %d, bottom: %d\n", vs.GetLeft(), vs.GetRight(), vs.GetTop(), vs.GetBottom())
 	for _, d := range vs.GetDisplays() {
 		fmt.Printf("Display: x: %d, y: %d, width: %d, height: %d, refresh: %.2f, primary: %v\n", d.X, d.Y, d.Width, d.Height, d.RefreshRate, d.Primary)
+	}
+
+	// capture the bitmap of the current displays
+	bmps, err := vs.CaptureBmp(display.DisplaysOpt(vs.GetDisplays()))
+	if err != nil {
+		fmt.Println("Error capturing bitmap:", err)
+		return
+	}
+	fmt.Println("Bitmap captured successfully, length:", len(bmps))
+	for _, b := range bmps {
+		fmt.Println("Bitmap length:", len(b))
+	}
+
+	// making the mouse move in a diagonal line
+	mX, mY := m.GetCurrentPosition()
+	fmt.Println("Current mouse position:", mX, mY)
+	for range 5 {
+		mX += 25
+		mY += 25
+		err := m.Move(mouse.ToYOpt(int32(mY)), mouse.ToXOpt(int32(mX)))
+		if err != nil {
+			fmt.Println("Error moving mouse:", err)
+			return
+		}
+		fmt.Println("Mouse moved successfully")
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+func helloWorld() []keyboard.KeyboardPressOption {
+	return []keyboard.KeyboardPressOption{
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeShift, key_codes.KeyCodeH}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeE}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeL}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeL}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeO}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeSpace}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeShift, key_codes.KeyCodeW}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeO}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeR}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeL}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeD}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeEnter}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeSpace}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeSpace}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCodeAdd}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCode6}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCode9}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCode4}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCode2}),
+		keyboard.KeyCodeOpt([]key_codes.KeyCode{key_codes.KeyCode0}),
 	}
 }

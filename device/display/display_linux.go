@@ -4,24 +4,13 @@
 package display
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"automation/tools/linux"
 )
-
-// DetectDisplays detects all connected displays and ensures the primary display is at index 0.
-func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
-	// Execute the `xrandr` command to get display information
-	output, err := linux.ExecuteXrandr()
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the output of the xrandr command
-	return extractDisplaysFromXrandrOutput(string(output)), nil
-}
 
 func Init() VirtualScreen {
 	var vs virtualScreen
@@ -59,6 +48,65 @@ func Init() VirtualScreen {
 	}
 	return &vs
 
+}
+
+func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error) {
+	displayCaptureOptions := &displayCaptureOption{}
+	for _, opt := range options {
+		opt(displayCaptureOptions)
+	}
+
+	// Parse the DisplayCaptureOption varargs
+	var displays []Display
+	if len(options) == 0 || len(displayCaptureOptions.Displays) == 0 {
+		// Default to capturing the primary display
+		for _, display := range vs.Displays {
+			if display.Primary {
+				displays = append(displays, display)
+				break
+			}
+		}
+		if len(displays) == 0 {
+			return nil, fmt.Errorf("no primary display found")
+		}
+	} else {
+		// Use the specified displays
+		displays = displayCaptureOptions.Displays
+	}
+
+	// Prepare a slice to hold the raw pixel data for each display
+	var bitmaps [][]byte
+
+	// Iterate over the displays and capture each one
+	for _, display := range displays {
+		// Use `xwd` to capture the screen contents for the specified display
+		xwdOutput, err := linux.CaptureXwd(display.X, display.Y, display.Width, display.Height)
+		if err != nil {
+			return nil, fmt.Errorf("failed to capture display %v: %w", display, err)
+		}
+
+		// Parse the raw pixel data from the `xwd` output
+		rawPixelData, err := linux.ExtractRawPixelData(xwdOutput, display.Width, display.Height)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract raw pixel data for display %v: %w", display, err)
+		}
+
+		// Append the raw pixel data to the result slice
+		bitmaps = append(bitmaps, rawPixelData)
+	}
+
+	return bitmaps, nil
+}
+
+func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
+	// Execute the `xrandr` command to get display information
+	output, err := linux.ExecuteXrandr()
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the output of the xrandr command
+	return extractDisplaysFromXrandrOutput(string(output)), nil
 }
 
 func extractDisplaysFromXrandrOutput(output string) []Display {
@@ -110,6 +158,31 @@ func extractDisplaysFromXrandrOutput(output string) []Display {
 	}
 
 	return displays
+}
+
+func extractRawPixelData(xwdOutput []byte, width, height int) ([]byte, error) {
+	// The XWD file format includes a header before the pixel data.
+	// The header size is typically 100 bytes, but this may vary depending on the X server.
+	const xwdHeaderSize = 100
+
+	if len(xwdOutput) <= xwdHeaderSize {
+		return nil, fmt.Errorf("invalid xwd output: too small")
+	}
+
+	// Extract the raw pixel data (BGRA format)
+	rawPixelData := xwdOutput[xwdHeaderSize:]
+
+	// Verify the size of the raw pixel data
+	expectedSize := width * height * 4 // 4 bytes per pixel (32-bit color)
+	if len(rawPixelData) < expectedSize {
+		return nil, fmt.Errorf("invalid xwd output: insufficient pixel data")
+	}
+
+	// Convert the pixel data to BGRA format (if necessary)
+	// Note: Depending on the X server, the pixel format may already be BGRA.
+	// If conversion is needed, implement it here.
+
+	return rawPixelData, nil
 }
 
 func isDisplayDetails(xrandrOutput string) bool {

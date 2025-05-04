@@ -20,6 +20,17 @@ type virtualScreen struct {
 }
 
 type VirtualScreen interface {
+	// CaptureBmp captures the current screen and saves the bitmap as a byte slice.
+	// It accepts options to specify which display(s) to capture, if none are provided then the primary display is captured.
+	//
+	// Parameters:
+	//   - options: Optional parameters for the display capture, such as the display to capture.
+	//
+	// Returns:
+	//   - []byte: A byte slice containing the bitmap data of the captured screen.
+	//   - error: An error if the capture fails.
+	CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error)
+
 	// DetectDisplays detects all displays connected to the system and returns a slice of display structs.
 	// It also modifies the virtual screen Displays field to include the detected displays.
 	// If no displays are found, it returns an error.

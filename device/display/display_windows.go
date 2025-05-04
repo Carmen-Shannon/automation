@@ -5,6 +5,7 @@ package display
 
 import (
 	"automation/tools/windows"
+	"fmt"
 	"unsafe"
 )
 
@@ -75,6 +76,25 @@ type displayDevice struct {
 	DeviceKey    [128]uint16
 }
 
+type bitmapInfoHeader struct {
+	BiSize          uint32
+	BiWidth         int32
+	BiHeight        int32
+	BiPlanes        uint16
+	BiBitCount      uint16
+	BiCompression   uint32
+	BiSizeImage     uint32
+	BiXPelsPerMeter int32
+	BiYPelsPerMeter int32
+	BiClrUsed       uint32
+	BiClrImportant  uint32
+}
+
+type bitmapInfo struct {
+	BmiHeader bitmapInfoHeader
+	BmiColors [1]uint32
+}
+
 func Init() VirtualScreen {
 	// Retrieve the virtual screen's top-left corner
 	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
@@ -98,6 +118,98 @@ func Init() VirtualScreen {
 	vs.Displays = displays
 
 	return &vs
+}
+
+func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([][]byte, error) {
+	displayCaptureOptions := &displayCaptureOption{}
+	for _, opt := range options {
+		opt(displayCaptureOptions)
+	}
+
+	// Parse the DisplayCaptureOption varargs
+	var displays []Display
+	if len(options) == 0 || len(displayCaptureOptions.Displays) == 0 {
+		// Default to capturing the primary display
+		pd, err := vs.GetPrimaryDisplay()
+		if err != nil {
+			return nil, err
+		}
+		displays = append(displays, pd)
+	} else {
+		// Use the specified displays
+		displays = displayCaptureOptions.Displays
+	}
+
+	// Prepare a slice to hold the bitmap data for each display
+	var bitmaps [][]byte
+
+	// Iterate over the displays and capture each one
+	for _, display := range displays {
+		// Get the device context of the screen
+		hdcScreen, _, err := windows.GetDC.Call(0)
+		if hdcScreen == 0 {
+			return nil, fmt.Errorf("failed to get screen device context: %w", err)
+		}
+		defer windows.ReleaseDC.Call(0, hdcScreen)
+
+		// Create a compatible device context
+		hdcMem, _, err := windows.CreateCompatibleDC.Call(hdcScreen)
+		if hdcMem == 0 {
+			return nil, fmt.Errorf("failed to create compatible device context: %w", err)
+		}
+		defer windows.DeleteDC.Call(hdcMem)
+
+		// Calculate the width and height of the display
+		width := display.Width
+		height := display.Height
+
+		// Create a compatible bitmap
+		hBitmap, _, err := windows.CreateCompatibleBitmap.Call(hdcScreen, uintptr(width), uintptr(height))
+		if hBitmap == 0 {
+			return nil, fmt.Errorf("failed to create compatible bitmap: %w", err)
+		}
+		defer windows.DeleteObject.Call(hBitmap)
+
+		// Select the bitmap into the memory device context
+		oldBitmap, _, err := windows.SelectObject.Call(hdcMem, hBitmap)
+		if oldBitmap == 0 {
+			return nil, fmt.Errorf("failed to select bitmap into device context: %w", err)
+		}
+		defer windows.SelectObject.Call(hdcMem, oldBitmap)
+
+		// Copy the screen contents into the memory device context
+		ret, _, err := windows.BitBlt.Call(hdcMem, 0, 0, uintptr(width), uintptr(height), hdcScreen, uintptr(display.X), uintptr(display.Y), uintptr(windows.SRCCOPY))
+		if ret == 0 {
+			return nil, fmt.Errorf("failed to copy screen contents: %w", err)
+		}
+
+		// Retrieve the bitmap data
+		var bmpInfo bitmapInfo
+		bmpInfo.BmiHeader.BiSize = uint32(unsafe.Sizeof(bmpInfo.BmiHeader))
+		bmpInfo.BmiHeader.BiWidth = int32(width)
+		bmpInfo.BmiHeader.BiHeight = -int32(height) // Pnegative height for top-down DIB
+		bmpInfo.BmiHeader.BiPlanes = 1
+		bmpInfo.BmiHeader.BiBitCount = 32
+		bmpInfo.BmiHeader.BiCompression = windows.BI_RGB
+
+		// Calculate the size of the bitmap data
+		rowSize := (int(width)*4 + 3) & ^3 // Row size must be a multiple of 4 bytes
+		bitmapSize := rowSize * int(height)
+
+		// Allocate memory for the bitmap data
+		bitmapData := make([]byte, bitmapSize)
+
+		// Get the bitmap data
+		ret, _, err = windows.GetDIBits.Call(hdcMem, hBitmap, 0, uintptr(height), uintptr(unsafe.Pointer(&bitmapData[0])), uintptr(unsafe.Pointer(&bmpInfo)), uintptr(windows.DIB_RGB_COLORS))
+		if ret == 0 {
+			return nil, fmt.Errorf("failed to retrieve bitmap data: %w", err)
+		}
+
+		// Append the complete BMP data to the result slice
+		bitmaps = append(bitmaps, bitmapData)
+	}
+
+	return bitmaps, nil
 }
 
 func (vs *virtualScreen) DetectDisplays() ([]Display, error) {

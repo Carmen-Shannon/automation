@@ -11,6 +11,7 @@ package linux
 */
 import "C"
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"time"
@@ -82,4 +83,18 @@ func ExecuteXdotoolKeyDown(keySym string) error {
 
 func ExecuteXdotoolKeyUp(keySym string) error {
 	return exec.Command("xdotool", "keyup", keySym).Run()
+}
+
+func ExecuteXwd(x, y, width, height int) ([]byte, error) {
+	// Construct the `xwd` command
+	cmd := exec.Command("xwd", "-root", "-silent", "-geometry", fmt.Sprintf("%dx%d+%d+%d", width, height, x, y))
+
+	// Capture the output of the command
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to execute xwd: %w", err)
+	}
+
+	return out.Bytes(), nil
 }
