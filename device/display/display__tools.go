@@ -6,6 +6,111 @@ import (
 	"unsafe"
 )
 
+// FindSubBMP searches for a smaller BMP within a larger BMP using MSE for fuzzy matching.
+// Parameters:
+//   - largeBMP: The larger BMP image.
+//   - smallBMP: The smaller BMP image (template).
+//   - mseThreshold: The maximum allowable MSE for a match.
+//
+// Returns:
+//   - (x, y): The top-left coordinates of the match in the larger BMP.
+//   - error: An error if no match is found.
+func FindSubBMP(largeBMP, smallBMP BMP, mseThreshold float64) (int, int, error) {
+	// Validate dimensions
+	if smallBMP.Width > largeBMP.Width || smallBMP.Height > largeBMP.Height {
+		return 0, 0, fmt.Errorf("small BMP dimensions exceed large BMP dimensions")
+	}
+
+	// Normalize BMPs to top-down format
+	largeData := normalizeBMPData(largeBMP)
+	smallData := normalizeBMPData(smallBMP)
+
+	// Calculate bytes per pixel for both BMPs
+	largeBytesPerPixel := calcBytesPerPixel(int(largeBMP.InfoHeader.BiBitCount))
+	smallBytesPerPixel := calcBytesPerPixel(int(smallBMP.InfoHeader.BiBitCount))
+
+	// Calculate row sizes (BMP rows are padded to 4-byte boundaries)
+	largeRowSize := ((largeBMP.Width*largeBytesPerPixel + 3) / 4) * 4
+	smallRowSize := ((smallBMP.Width*smallBytesPerPixel + 3) / 4) * 4
+
+	// Sliding window search
+	for y := 0; y <= largeBMP.Height-smallBMP.Height; y++ {
+		for x := 0; x <= largeBMP.Width-smallBMP.Width; x++ {
+			// Calculate MSE for the current window
+			mse := calculateMSE(largeData, smallData, x, y, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, smallBMP.Width, smallBMP.Height)
+			if mse <= mseThreshold {
+				return x, y, nil // Match found
+			}
+		}
+	}
+
+	// No match found
+	return 0, 0, fmt.Errorf("no match found")
+}
+
+// calculateMSE calculates the Mean Squared Error (MSE) between the current window in the larger BMP and the smaller BMP.
+// Parameters:
+//   - largeData: The pixel data of the larger BMP.
+//   - smallData: The pixel data of the smaller BMP.
+//   - startX, startY: The top-left coordinates of the current window in the larger BMP.
+//   - largeRowSize, smallRowSize: The row sizes of the larger and smaller BMPs.
+//   - largeBytesPerPixel, smallBytesPerPixel: The bytes per pixel for the larger and smaller BMPs.
+//   - smallWidth, smallHeight: The dimensions of the smaller BMP.
+//
+// Returns:
+//   - mse: The calculated Mean Squared Error.
+func calculateMSE(largeData, smallData []byte, startX, startY, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, smallWidth, smallHeight int) float64 {
+	var totalError float64
+	var pixelCount int
+
+	for row := 0; row < smallHeight; row++ {
+		// Calculate the starting index for the current row in both BMPs
+		largeRowStart := (startY+row)*largeRowSize + startX*largeBytesPerPixel
+		smallRowStart := row * smallRowSize
+
+		for col := 0; col < smallWidth; col++ {
+			// Calculate the starting index for the current pixel in both BMPs
+			largePixelStart := largeRowStart + col*largeBytesPerPixel
+			smallPixelStart := smallRowStart + col*smallBytesPerPixel
+
+			// Compare pixel values (assume RGB format for simplicity)
+			for i := 0; i < 3; i++ { // Compare R, G, B channels
+				largeValue := float64(largeData[largePixelStart+i])
+				smallValue := float64(smallData[smallPixelStart+i])
+				totalError += (largeValue - smallValue) * (largeValue - smallValue)
+			}
+
+			pixelCount++
+		}
+	}
+
+	// Calculate the mean squared error
+	return totalError / float64(pixelCount*3) // Multiply by 3 for RGB channels
+}
+
+// normalizeBMPData ensures that the BMP data is in top-down format.
+// If the BMP is bottom-up (BiHeight > 0), it flips the rows.
+func normalizeBMPData(bmp BMP) []byte {
+	// If the BMP is already top-down (negative height), return the data as-is
+	if bmp.InfoHeader.BiHeight < 0 {
+		return bmp.Data
+	}
+
+	// Otherwise, flip the rows to make it top-down
+	bytesPerPixel := calcBytesPerPixel(int(bmp.InfoHeader.BiBitCount))
+	rowSize := ((bmp.Width*bytesPerPixel + 3) / 4) * 4
+	height := int(bmp.InfoHeader.BiHeight)
+
+	normalizedData := make([]byte, len(bmp.Data))
+	for row := 0; row < height; row++ {
+		srcOffset := (height - 1 - row) * rowSize
+		dstOffset := row * rowSize
+		copy(normalizedData[dstOffset:dstOffset+rowSize], bmp.Data[srcOffset:srcOffset+rowSize])
+	}
+
+	return normalizedData
+}
+
 // LoadBmp parses BMP data from a byte slice and extracts the raw pixel data, width, and height.
 //
 // Parameters:
@@ -171,7 +276,7 @@ func processBmp24bit(data []byte, fileHeader bitmapHeader, infoHeader bitmapInfo
 
 	// Calculate the pixel data offset and size
 	pixelDataOffset := int(fileHeader.OffBits)
-	rowSize := (width*3 + 3) & ^3 // Row size with padding (3 bytes per pixel)
+	rowSize := ((width*3 + 3) / 4) * 4 // Row size with padding (3 bytes per pixel)
 	dataSize := rowSize * height
 
 	// Ensure the pixel data is within bounds
@@ -179,16 +284,14 @@ func processBmp24bit(data []byte, fileHeader bitmapHeader, infoHeader bitmapInfo
 		return nil, fmt.Errorf("invalid BMP data: pixel data out of bounds")
 	}
 
-	// Extract the raw pixel data
-	rawPixelData := data[pixelDataOffset : pixelDataOffset+dataSize]
+	// Extract the raw pixel data, including padding bytes
+	pixelData := data[pixelDataOffset : pixelDataOffset+dataSize]
 
-	// Convert the padded rows into a contiguous pixel array
-	pixelData := make([]byte, width*height*3) // 3 bytes per pixel
-	for y := 0; y < height; y++ {
-		srcOffset := y * rowSize
-		dstOffset := y * width * 3
-		copy(pixelData[dstOffset:dstOffset+width*3], rawPixelData[srcOffset:srcOffset+width*3])
-	}
+	// Debugging: Print calculated values
+	fmt.Printf("processBmp24bit Debugging:\n")
+	fmt.Printf("  Width: %d, Height: %d\n", width, height)
+	fmt.Printf("  RowSize: %d, DataSize: %d\n", rowSize, dataSize)
+	fmt.Printf("  PixelDataOffset: %d, TotalDataLength: %d\n", pixelDataOffset, len(data))
 
 	return &BMP{FileHeader: fileHeader, InfoHeader: infoHeader, Data: pixelData, Width: width, Height: height}, nil
 }
