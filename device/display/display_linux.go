@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"automation/tools/linux"
+	linux "automation/tools/_linux"
 )
 
-func Init() VirtualScreen {
+func NewVirtualScreen() VirtualScreen {
 	var vs virtualScreen
 	displays, err := vs.DetectDisplays()
 	if err != nil {

@@ -4,102 +4,56 @@
 package mouse
 
 import (
-	"automation/device/display"
-	"automation/tools/windows"
+	windows "automation/tools/_windows"
 	"errors"
 	"fmt"
 	"time"
 	"unsafe"
 )
 
-func Init() *mouse {
-	var m mouse
-
-	ret, _, err := windows.GetCursorPos.Call(uintptr(unsafe.Pointer(&m)))
+func doGetMousePosition() (int32, int32, error) {
+	var p struct {
+		x int32
+		y int32
+	}
+	ret, _, err := windows.GetCursorPos.Call(uintptr(unsafe.Pointer(&p)))
 	if ret == 0 {
 		fmt.Println("failed to get the current mouse position: ", err.Error())
-		return &mouse{x: 0, y: 0}
+		return 0, 0, errors.New("failed to get the current mouse position: " + err.Error())
 	}
 
-	return &m
+	return p.x, p.y, nil
 }
 
-// Move moves the mouse to the specified coordinates on the given displays.
-func (m *mouse) Move(options ...MouseMoveOption) error {
-	moveOptions := &mouseMoveOption{ToX: 0, ToY: 0}
-	for _, opt := range options {
-		opt(moveOptions)
-	}
-	// Get the virtual screen bounds
-	if vs == nil {
-		vs = display.Init()
-	}
-	// default to primary display if no options are provided
-	if moveOptions.Display == nil {
-		if pd == nil {
-			d, err := vs.GetPrimaryDisplay()
-			if err != nil {
-				return err
-			}
-			pd = &d
-		}
-		moveOptions.Display = pd
-	}
-
-	absoluteX := moveOptions.Display.X + int32(moveOptions.ToX)
-	absoluteY := moveOptions.Display.Y + int32(moveOptions.ToY)
-
-	// Validate the coordinates against the virtual screen bounds
-	if (absoluteX < vs.GetLeft() || absoluteX > vs.GetRight()) ||
-		(absoluteY > vs.GetTop() || absoluteY < vs.GetBottom()) {
-		return errors.New("coordinates are outside the virtual screen bounds for display")
-	}
-
-	ret, _, err := windows.SetCursorPos.Call(uintptr(absoluteX), uintptr(absoluteY))
-	if ret == 0 {
-		return errors.New("failed to move the mouse: " + err.Error())
-	}
-
-	m.x = absoluteX
-	m.y = absoluteY
-	return nil
-}
-
-func (m *mouse) Click(options ...MouseClickOption) error {
-	clickOptions := &mouseClickOption{}
-	for _, opt := range options {
-		opt(clickOptions)
-	}
-	// default to left click if no options are provided
-	if !clickOptions.Left && !clickOptions.Right && !clickOptions.Middle {
-		clickOptions.Left = true
-	}
-
-	// Combine all click events if multiple options are provided
+func (m *mouse) doMouseClick(btn int, duration int) error {
 	var downFlags, upFlags uintptr
-	if clickOptions.Left {
+	if btn == 1 {
 		downFlags |= windows.MOUSEEVENTF_LEFTDOWN
 		upFlags |= windows.MOUSEEVENTF_LEFTUP
 	}
-	if clickOptions.Right {
+	if btn == 3 {
 		downFlags |= windows.MOUSEEVENTF_RIGHTDOWN
 		upFlags |= windows.MOUSEEVENTF_RIGHTUP
 	}
-	if clickOptions.Middle {
+	if btn == 2 {
 		downFlags |= windows.MOUSEEVENTF_MIDDLEDOWN
 		upFlags |= windows.MOUSEEVENTF_MIDDLEUP
 	}
 
-	// Perform the click down event
 	windows.MouseEvent.Call(downFlags, 0, 0, 0, 0)
 
-	// Add delay if DurationOpt is specified
-	if clickOptions.Duration > 0 {
-		time.Sleep(time.Duration(clickOptions.Duration) * time.Millisecond)
+	if duration > 0 {
+		time.Sleep(time.Duration(duration) * time.Millisecond)
 	}
 
-	// Perform the click up event
 	windows.MouseEvent.Call(upFlags, 0, 0, 0, 0)
+	return nil
+}
 
+func (m *mouse) doMouseMove(x, y int32) error {
+	ret, _, err := windows.SetCursorPos.Call(uintptr(x), uintptr(y))
+	if ret == 0 {
+		return errors.New("failed to move the mouse: " + err.Error())
+	}
 	return nil
 }

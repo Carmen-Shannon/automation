@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	"automation/tools/windows"
+	"automation/tools"
+	windows "automation/tools/_windows"
 )
 
 // rect represents a rectangle with coordinates for the display.
@@ -77,7 +78,7 @@ type displayDevice struct {
 	DeviceKey    [128]uint16
 }
 
-func Init() VirtualScreen {
+func NewVirtualScreen() VirtualScreen {
 	// Retrieve the virtual screen's top-left corner
 	left, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_XVIRTUALSCREEN))
 	bottom, _, _ := windows.GetSystemMetrics.Call(uintptr(windows.SM_YVIRTUALSCREEN))
@@ -113,7 +114,6 @@ func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, err
 
 	var displays []Display
 	if len(displayCaptureOptions.Displays) == 0 {
-		fmt.Println("wtf")
 		pd, err := vs.GetPrimaryDisplay()
 		if err != nil {
 			return nil, err
@@ -154,10 +154,6 @@ func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, err
 			bottom = display.Y + int32(display.Height)
 		}
 
-		// Debugging: Log the bounds
-		fmt.Printf("Display: %+v\n", display)
-		fmt.Printf("Bounds: left=%d, top=%d, right=%d, bottom=%d\n", left, top, right, bottom)
-
 		// Calculate the width and height based on the bounds
 		width := int(right - left)
 		height := int(bottom - top)
@@ -185,9 +181,6 @@ func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, err
 		sourceX := left
 		sourceY := top
 
-		// Debugging: Log the source coordinates
-		fmt.Printf("Source Coordinates: sourceX=%d, sourceY=%d\n", sourceX, sourceY)
-
 		// Copy the screen contents into the memory device context
 		err = windows.CopyScreenToMemory(hdcMem, hdcScreen, 0, 0, width, height, int(sourceX), int(sourceY))
 
@@ -203,7 +196,7 @@ func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, err
 		infoHeader := buildBitMapInfoHeader(int32(width), int32(height), pixelsPerMeterX, pixelsPerMeterY, uint16(displayCaptureOptions.BitCount), windows.BI_RGB)
 		bmpInfo.BmiHeader = *infoHeader
 
-		bytesPerPixel := calcBytesPerPixel(displayCaptureOptions.BitCount)
+		bytesPerPixel := tools.CalcBytesPerPixel(displayCaptureOptions.BitCount)
 		bitmapSize := calcBmpSize(width, height, bytesPerPixel, displayCaptureOptions.BitCount)
 
 		// Allocate memory for the bitmap data

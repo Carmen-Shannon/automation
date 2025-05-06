@@ -4,7 +4,7 @@
 package keyboard
 
 import (
-	"automation/tools/windows"
+	windows "automation/tools/_windows"
 	"errors"
 	"fmt"
 	"slices"

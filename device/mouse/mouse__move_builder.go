@@ -3,23 +3,17 @@ package mouse
 import "automation/device/display"
 
 type mouseMoveOption struct {
-	ToX       int32
-	ToY       int32
-	Display *display.Display
-	Velocity *uint8
+	Velocity int
+	Jitter   int
+	Done     chan struct{}
+	Display  *display.Display
 }
 
 type MouseMoveOption func(*mouseMoveOption)
 
-func ToXOpt(toX int32) MouseMoveOption {
+func JitterOpt(jitter int) MouseMoveOption {
 	return func(opt *mouseMoveOption) {
-		opt.ToX = toX
-	}
-}
-
-func ToYOpt(toY int32) MouseMoveOption {
-	return func(opt *mouseMoveOption) {
-		opt.ToY = toY
+		opt.Jitter = jitter
 	}
 }
 
@@ -29,8 +23,14 @@ func DisplayOpt(display *display.Display) MouseMoveOption {
 	}
 }
 
-func VelocityOpt(velocity *uint8) MouseMoveOption {
+func VelocityOpt(velocity int) MouseMoveOption {
 	return func(opt *mouseMoveOption) {
 		opt.Velocity = velocity
+	}
+}
+
+func DoneSignalOpt(done chan struct{}) MouseMoveOption {
+	return func(opt *mouseMoveOption) {
+		opt.Done = done
 	}
 }

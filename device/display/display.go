@@ -18,6 +18,7 @@ type Display struct {
 type BMP struct {
 	FileHeader bitmapHeader
 	InfoHeader bitmapInfoHeader
+	ColorTable [256][4]uint8
 	Data       []byte
 	Width      int
 	Height     int
@@ -52,6 +53,13 @@ func (b *BMP) ToBinary() []byte {
 	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiYPelsPerMeter)
 	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiClrUsed)
 	binary.Write(&buffer, binary.LittleEndian, b.InfoHeader.BiClrImportant)
+
+	// Serialize the color table if BiBitCount is 8
+	if b.InfoHeader.BiBitCount == 8 {
+		for _, entry := range b.ColorTable {
+			binary.Write(&buffer, binary.LittleEndian, entry)
+		}
+	}
 
 	// Append the pixel data
 	buffer.Write(b.Data)

@@ -53,7 +53,7 @@ func main() {
 	for range 5 {
 		mX += 25
 		mY += 25
-		err := m.Move(mouse.ToYOpt(int32(mY)), mouse.ToXOpt(int32(mX)))
+		err := m.Move(mX, mY)
 		if err != nil {
 			fmt.Println("Error moving mouse:", err)
 			return

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"automation/tools/linux"
+	linux "automation/tools/_linux"
 )
 
 func KeyPress(options ...KeyboardPressOption) error {
