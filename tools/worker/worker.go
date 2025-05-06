@@ -5,12 +5,11 @@ import (
 	"sync"
 )
 
-func NewWorker(id int, taskChan chan Task, doneChan chan int, stopChan chan int, errChan chan error) Worker {
+func NewWorker(id int, taskChan chan Task, stopChan chan int, errChan chan error) Worker {
 	return &worker{
 		mu:       sync.Mutex{},
 		id:       id,
 		taskChan: taskChan,
-		doneChan: doneChan,
 		stopChan: stopChan,
 		errChan:  errChan,
 		active:   false,
@@ -24,7 +23,6 @@ type worker struct {
 	active bool
 
 	taskChan chan Task
-	doneChan chan int
 	stopChan chan int
 	errChan  chan error
 }
@@ -58,8 +56,6 @@ func (w *worker) Start() {
 				if err != nil {
 					w.sendError(fmt.Errorf("Worker %d error: %w", w.id, err))
 				}
-
-				w.done()
 			case i, ok := <-w.stopChan:
 				if !ok || i == w.id {
 					w.sendError(fmt.Errorf("Worker %d detected stop channel closing, stopping", w.id))
@@ -72,14 +68,9 @@ func (w *worker) Start() {
 
 func (w *worker) Stop() {
 	w.stopChan <- w.id
-	w.done()
 	w.mu.Lock()
 	w.active = false
 	w.mu.Unlock()
-}
-
-func (w *worker) done() {
-	w.doneChan <- w.id
 }
 
 func (w *worker) sendError(err error) {

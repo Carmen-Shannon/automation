@@ -17,7 +17,6 @@ type dynamicWorkerPool struct {
 	workers []Worker
 
 	taskQueue     chan Task
-	doneChan      chan int
 	stopChan      chan int
 	errChan       chan error
 	maxWorkers    int
@@ -95,7 +94,6 @@ func NewDynamicWorkerPool(maxWorkers int, queueSize int) DynamicWorkerPool {
 	pool := &dynamicWorkerPool{
 		mu:         sync.Mutex{},
 		taskQueue:  make(chan Task, queueSize),
-		doneChan:   make(chan int, maxWorkers),
 		stopChan:   make(chan int, maxWorkers),
 		errChan:    make(chan error, maxWorkers),
 		maxWorkers: maxWorkers,
@@ -106,7 +104,6 @@ func NewDynamicWorkerPool(maxWorkers int, queueSize int) DynamicWorkerPool {
 	pool.initWorkers()
 
 	go pool.errorHandler()
-	go pool.doneHandler()
 	go pool.taskHandler()
 
 	return pool
@@ -214,7 +211,7 @@ func (p *dynamicWorkerPool) Wait() {
 
 func (p *dynamicWorkerPool) addWorker() {
 	if len(p.workers) < p.maxWorkers {
-		worker := NewWorker(len(p.workers), p.taskQueue, p.doneChan, p.stopChan, p.errChan)
+		worker := NewWorker(len(p.workers), p.taskQueue, p.stopChan, p.errChan)
 		p.mu.Lock()
 		p.workers = append(p.workers, worker)
 		p.mu.Unlock()
@@ -223,7 +220,7 @@ func (p *dynamicWorkerPool) addWorker() {
 
 func (p *dynamicWorkerPool) initWorkers() {
 	for i := range p.maxWorkers {
-		worker := NewWorker(i, p.taskQueue, p.doneChan, p.stopChan, p.errChan)
+		worker := NewWorker(i, p.taskQueue, p.stopChan, p.errChan)
 		p.mu.Lock()
 		p.workers = append(p.workers, worker)
 		p.mu.Unlock()
@@ -275,11 +272,6 @@ func (p *dynamicWorkerPool) taskHandler() {
 				}
 			}
 		}
-	}
-}
-
-func (p *dynamicWorkerPool) doneHandler() {
-	for range p.doneChan {
 	}
 }
 
