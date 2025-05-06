@@ -7,25 +7,9 @@ import (
 	"fmt"
 	"unsafe"
 
-	"automation/tools"
-	windows "automation/tools/_windows"
+	"github.com/Carmen-Shannon/automation/tools"
+	windows "github.com/Carmen-Shannon/automation/tools/_windows"
 )
-
-// rect represents a rectangle with coordinates for the display.
-type rect struct {
-	Left   int32
-	Top    int32
-	Right  int32
-	Bottom int32
-}
-
-// monitorInfo contains information about a display monitor.
-type monitorInfo struct {
-	Size    uint32
-	Monitor rect
-	Work    rect
-	Flags   uint32
-}
 
 // devMode represents the device mode for a display
 type devMode struct {
@@ -183,6 +167,9 @@ func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, err
 
 		// Copy the screen contents into the memory device context
 		err = windows.CopyScreenToMemory(hdcMem, hdcScreen, 0, 0, width, height, int(sourceX), int(sourceY))
+		if err != nil {
+			return nil, err
+		}
 
 		dpiX, _, _ := windows.GetDeviceCaps.Call(hdcScreen, uintptr(windows.LOGPIXELSX)) // Horizontal DPI
 		dpiY, _, _ := windows.GetDeviceCaps.Call(hdcScreen, uintptr(windows.LOGPIXELSY)) // Vertical DPI

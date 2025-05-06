@@ -1,6 +1,6 @@
 package keyboard
 
-import "automation/device/keyboard/key_codes"
+import "github.com/Carmen-Shannon/automation/device/keyboard/key_codes"
 
 type keyboardPressOption struct {
 	KeyCodes  []key_codes.KeyCode

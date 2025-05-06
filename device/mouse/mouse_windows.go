@@ -4,7 +4,7 @@
 package mouse
 
 import (
-	windows "automation/tools/_windows"
+	windows "github.com/Carmen-Shannon/automation/tools/_windows"
 	"errors"
 	"time"
 	"unsafe"

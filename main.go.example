@@ -1,10 +1,10 @@
 package main
 
 import (
-	"automation/device/display"
-	"automation/device/keyboard"
-	"automation/device/keyboard/key_codes"
-	"automation/device/mouse"
+	"github.com/Carmen-Shannon/automation/device/display"
+	"github.com/Carmen-Shannon/automation/device/keyboard"
+	"github.com/Carmen-Shannon/automation/device/keyboard/key_codes"
+	"github.com/Carmen-Shannon/automation/device/mouse"
 	"fmt"
 	"time"
 )

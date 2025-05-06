@@ -1,12 +1,13 @@
 package matcher
 
 import (
-	"automation/device/display"
-	"automation/tools"
-	"automation/tools/worker"
 	"fmt"
 	"sync"
 	"sync/atomic"
+
+	"github.com/Carmen-Shannon/automation/device/display"
+	"github.com/Carmen-Shannon/automation/tools"
+	"github.com/Carmen-Shannon/automation/tools/worker"
 )
 
 type chunk struct {

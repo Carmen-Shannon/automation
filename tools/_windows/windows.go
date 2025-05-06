@@ -20,9 +20,6 @@ var (
 	KeybdEvent          = User32.NewProc("keybd_event")
 	getDC               = User32.NewProc("GetDC")
 	ReleaseDC           = User32.NewProc("ReleaseDC")
-	MonitorFromRect     = User32.NewProc("MonitorFromRect")
-	MonitorFromWindow   = User32.NewProc("MonitorFromWindow")
-	EnumWindows         = User32.NewProc("EnumWindows")
 
 	// GDI32 DLL calls
 	Gdi32                  = syscall.NewLazyDLL("gdi32.dll")

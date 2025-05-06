@@ -4,7 +4,7 @@
 package mouse
 
 import (
-	linux "automation/tools/_linux"
+	linux "github.com/Carmen-Shannon/automation/tools/_linux"
 	"fmt"
 )
 

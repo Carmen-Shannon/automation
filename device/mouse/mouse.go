@@ -1,13 +1,14 @@
 package mouse
 
 import (
-	"automation/device/display"
 	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/Carmen-Shannon/automation/device/display"
 )
 
 type mouse struct {

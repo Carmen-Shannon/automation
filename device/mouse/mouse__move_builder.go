@@ -1,6 +1,6 @@
 package mouse
 
-import "automation/device/display"
+import "github.com/Carmen-Shannon/automation/device/display"
 
 type mouseMoveOption struct {
 	Velocity int

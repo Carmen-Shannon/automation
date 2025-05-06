@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	linux "automation/tools/_linux"
+	linux "github.com/Carmen-Shannon/automation/tools/_linux"
 )
 
 func NewVirtualScreen() VirtualScreen {

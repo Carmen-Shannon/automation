@@ -1,13 +1,14 @@
 package matcher
 
 import (
-	"automation/device/display"
-	"automation/tools"
-	"automation/tools/worker"
 	"context"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/Carmen-Shannon/automation/device/display"
+	"github.com/Carmen-Shannon/automation/tools"
+	"github.com/Carmen-Shannon/automation/tools/worker"
 )
 
 type matcher struct {

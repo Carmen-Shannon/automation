@@ -4,11 +4,12 @@
 package keyboard
 
 import (
-	windows "automation/tools/_windows"
 	"errors"
 	"fmt"
 	"slices"
 	"time"
+
+	windows "github.com/Carmen-Shannon/automation/tools/_windows"
 )
 
 func KeyPress(options ...KeyboardPressOption) error {
