@@ -203,33 +203,31 @@ func (m *mouse) moveWithVelocity(x, y int32, velocity, jitter int, disp *display
 	currentVelocity := float64(velocity) // Start with the base velocity
 
 	for i := 1; i <= steps; i++ {
-		select {
-		case <-ticker.C:
-			// Adjust velocity based on jitter
-			if jitter > 0 {
-				velocityFluctuation := float64(rand.Intn(2*jitter+1)-jitter) * 0.1    // Fluctuation scaled by jitter
-				currentVelocity = math.Max(10, float64(velocity)+velocityFluctuation) // Ensure velocity doesn't drop too low
-			}
+		<-ticker.C
+		// Adjust velocity based on jitter
+		if jitter > 0 {
+			velocityFluctuation := float64(rand.Intn(2*jitter+1)-jitter) * 0.1    // Fluctuation scaled by jitter
+			currentVelocity = math.Max(10, float64(velocity)+velocityFluctuation) // Ensure velocity doesn't drop too low
+		}
 
-			// Recalculate step duration based on the new velocity
-			stepDuration = time.Second / time.Duration(refreshRate*currentVelocity/float64(velocity))
-			ticker.Reset(stepDuration)
+		// Recalculate step duration based on the new velocity
+		stepDuration = time.Second / time.Duration(refreshRate*currentVelocity/float64(velocity))
+		ticker.Reset(stepDuration)
 
-			// Calculate the t parameter (progress along the curve)
-			t := float64(i) / float64(steps)
+		// Calculate the t parameter (progress along the curve)
+		t := float64(i) / float64(steps)
 
-			// Apply the easing function to t
-			easedT := 3*t*t - 2*t*t*t
+		// Apply the easing function to t
+		easedT := 3*t*t - 2*t*t*t
 
-			// Calculate the parabolic curve point using the quadratic bezier formula
-			currentX := (1-easedT)*(1-easedT)*float64(startX) + 2*(1-easedT)*easedT*controlX + easedT*easedT*float64(x)
-			currentY := (1-easedT)*(1-easedT)*float64(startY) + 2*(1-easedT)*easedT*controlY + easedT*easedT*float64(y)
+		// Calculate the parabolic curve point using the quadratic bezier formula
+		currentX := (1-easedT)*(1-easedT)*float64(startX) + 2*(1-easedT)*easedT*controlX + easedT*easedT*float64(x)
+		currentY := (1-easedT)*(1-easedT)*float64(startY) + 2*(1-easedT)*easedT*controlY + easedT*easedT*float64(y)
 
-			// Move the mouse to the calculated position
-			err := m.doMouseMove(int32(currentX), int32(currentY))
-			if err != nil {
-				return fmt.Errorf("failed to move mouse: %w", err)
-			}
+		// Move the mouse to the calculated position
+		err := m.doMouseMove(int32(currentX), int32(currentY))
+		if err != nil {
+			return fmt.Errorf("failed to move mouse: %w", err)
 		}
 	}
 
