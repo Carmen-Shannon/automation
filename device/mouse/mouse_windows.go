@@ -6,7 +6,6 @@ package mouse
 import (
 	windows "automation/tools/_windows"
 	"errors"
-	"fmt"
 	"time"
 	"unsafe"
 )
@@ -18,8 +17,7 @@ func doGetMousePosition() (int32, int32, error) {
 	}
 	ret, _, err := windows.GetCursorPos.Call(uintptr(unsafe.Pointer(&p)))
 	if ret == 0 {
-		fmt.Println("failed to get the current mouse position: ", err.Error())
-		return 0, 0, errors.New("failed to get the current mouse position: " + err.Error())
+		return 0, 0, err
 	}
 
 	return p.x, p.y, nil

@@ -288,7 +288,6 @@ func (p *dynamicWorkerPool) errorHandler() {
 		select {
 		case e, ok := <-p.errChan:
 			if !ok {
-				fmt.Println("Error channel closed, stopping error handler")
 				return
 			}
 			fmt.Println("Error detected in worker pool: ", e)

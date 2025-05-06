@@ -248,7 +248,6 @@ func submitTasks(pool worker.DynamicWorkerPool, chunkGroups [][]chunk, resultCha
 							// Early exit if the MSE is significantly below the threshold
 							if mse <= mseThreshold/5 {
 								if atomic.CompareAndSwapInt32(matchFound, 0, 1) {
-									fmt.Printf("Early match found at (%d, %d) with MSE: %f\n", absoluteX, absoluteY, mse)
 									sendResult(resultChan, struct {
 										X int
 										Y int
@@ -269,7 +268,6 @@ func submitTasks(pool worker.DynamicWorkerPool, chunkGroups [][]chunk, resultCha
 
 								if validationMSE <= mseThreshold {
 									if atomic.CompareAndSwapInt32(matchFound, 0, 1) {
-										fmt.Printf("Validated match found at (%d, %d) with MSE: %f\n", absoluteX, absoluteY, validationMSE)
 										sendResult(resultChan, struct {
 											X int
 											Y int
@@ -348,7 +346,6 @@ func sendResult(resultChan chan struct {
 		// Recover from panic if the channel is closed
 		if r := recover(); r != nil {
 			// no-op
-			fmt.Println("Result channel closed, skipping send:", r)
 		}
 	}()
 

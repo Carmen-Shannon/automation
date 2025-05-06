@@ -49,7 +49,6 @@ func New(bmp display.BMP) Matcher {
 }
 
 func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOption) (int, int, error) {
-	startTime := time.Now()
 	fbo := &findBuilderOption{}
 	for _, opt := range options {
 		opt(fbo)
@@ -119,11 +118,9 @@ func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOptio
 	case res := <-resultChan:
 		result = res
 		closeOnce.Do(closeResultChan)
-		fmt.Println("time to match: ", time.Since(startTime))
 		return result.X, result.Y, nil
 	case <-ctx.Done():
 		closeOnce.Do(closeResultChan)
-		fmt.Println("No match found (timeout).")
 		return 0, 0, fmt.Errorf("no match found")
 	}
 }
