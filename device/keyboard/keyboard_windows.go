@@ -12,6 +12,16 @@ import (
 	windows "github.com/Carmen-Shannon/automation/tools/_windows"
 )
 
+// KeyPressOption is a function that modifies the keyboard press options.
+// It is used to set the key codes and duration for the key press event.
+//
+// This is a functional option pattern that allows for flexible configuration of the key press event.
+//
+// Parameterss:
+//   - options: The keyboard press options to modify.
+//
+// Returns:
+//   - error: An error if the modification fails, otherwise nil.
 func KeyPress(options ...KeyboardPressOption) error {
 	kbpOpt := &keyboardPressOption{}
 	for _, opt := range options {

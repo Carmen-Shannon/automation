@@ -3,6 +3,7 @@ package matcher
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -42,9 +43,17 @@ type Matcher interface {
 
 var _ Matcher = (*matcher)(nil)
 
-func New(bmp display.BMP) Matcher {
+// NewMatcher creates a new matcher instance with the given BMP for scanning.
+// It initializes a worker pool for processing matching tasks and returns the matcher instance.
+//
+// Parameters:
+//   - bmp: The BMP to be used for scanning. This is the larger BMP image in which to search for the template.
+//
+// Returns:
+//   - Matcher: A new matcher instance that can be used to find templates within the specified BMP.
+func NewMatcher(bmp display.BMP) Matcher {
 	return &matcher{
-		pool: worker.NewDynamicWorkerPool(1, 3000),
+		pool: worker.NewDynamicWorkerPool(1, 3000, 500*time.Millisecond),
 		scan: bmp,
 	}
 }
@@ -54,32 +63,27 @@ func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOptio
 	for _, opt := range options {
 		opt(fbo)
 	}
-	if fbo.MSEThreshold == 0 {
-		fbo.MSEThreshold = 100.0
+	if fbo.Threshold == 0 {
+		fbo.Threshold = 100.0
 	}
 	if fbo.Timeout == 0 {
 		fbo.Timeout = 500 * time.Millisecond
 	}
 
-	// Step 1: Validate inputs
 	if err := validateBMPDimensions(m.scan, template); err != nil {
 		return 0, 0, err
 	}
 
-	// Step 2: Normalize BMPs
 	largeData, smallData := normalizeBMPData(m.scan), normalizeBMPData(template)
 
-	// Step 3: Calculate metadata
 	largeBytesPerPixel := tools.CalcBytesPerPixel(int(m.scan.InfoHeader.BiBitCount))
 	smallBytesPerPixel := tools.CalcBytesPerPixel(int(template.InfoHeader.BiBitCount))
 	largeRowSize := ((m.scan.Width*largeBytesPerPixel + 3) / 4) * 4
 	smallRowSize := ((template.Width*smallBytesPerPixel + 3) / 4) * 4
 
-	// Step 4: Chunk the large BMP
 	chunks := chunkBMP(m.scan, template.Width, template.Height)
 
-	// Step 5: Initialize worker pool
-	numWorkers := tools.Max((len(chunks)/3)/2, 1)
+	numWorkers := tools.Max(runtime.NumCPU()-1, 1)
 	chunkGroups := splitChunksForWorkers(chunks, numWorkers)
 	if numWorkers > m.pool.GetMaxWorkers() {
 		diff := numWorkers - m.pool.GetMaxWorkers()
@@ -89,40 +93,31 @@ func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOptio
 		m.pool.Start()
 	}
 
-	// Step 6: Submit tasks and collect results
 	resultChan := make(chan struct {
 		X int
 		Y int
 	}, 1)
-	matchFound := int32(0) // Atomic flag to signal match
-
-	// Use sync.Once to ensure the resultChan is closed exactly once
+	matchFound := int32(0)
 	var closeOnce sync.Once
 	closeResultChan := func() {
 		close(resultChan)
 	}
 
-	// Submit tasks to the worker pool
-	submitTasks(m.pool, chunkGroups, resultChan, &matchFound, largeData, smallData, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, template.Width, template.Height, fbo.MSEThreshold)
-
-	// Step 7: Wait for results or pool completion
-	var result struct {
-		X int
-		Y int
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), fbo.Timeout)
 	defer cancel()
 	defer m.pool.Stop()
+	defer closeOnce.Do(closeResultChan)
 
-	select {
-	case res := <-resultChan:
-		result = res
-		closeOnce.Do(closeResultChan)
-		return result.X, result.Y, nil
-	case <-ctx.Done():
-		closeOnce.Do(closeResultChan)
-		return 0, 0, fmt.Errorf("no match found")
+	// Submit tasks to the worker pool
+	submitTasks(m.pool, chunkGroups, resultChan, &matchFound, largeData, smallData, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, template.Width, template.Height, fbo.Threshold, ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return 0, 0, fmt.Errorf("no match found - timeout")
+		case res := <-resultChan:
+			return res.X, res.Y, nil
+		}
 	}
 }
 

@@ -25,6 +25,23 @@ var (
 	pd *display.Display
 )
 
+func NewMouse() Mouse {
+	var m mouse
+	m.mu = sync.Mutex{}
+	m.done = nil
+
+	x, y, err := doGetMousePosition()
+	if err != nil {
+		return &m
+	}
+
+	m.x = x
+	m.y = y
+	return &m
+}
+
+// Mouse is an interface that defines the methods for mouse operations.
+// It allows for moving the mouse, clicking, and getting the current position of the mouse cursor.
 type Mouse interface {
 	// Move moves the mouse to the specified coordinates on the given displays.
 	// If no displays are provided, it defaults to the primary display - this is OS dependent.
@@ -54,7 +71,7 @@ type Mouse interface {
 	// GetCurrentPosition retrieves the current position of the mouse cursor.
 	// The position is returned as a tuple of (x, y) coordinates.
 	// If the position cannot be determined, (0, 0) is returned.
-	// The Init function should be called prior to calling this function, otherwise it will always return (0, 0)
+	// The NewMouse function should be called prior to calling this function, otherwise it will always return (0, 0)
 	//
 	// Returns:
 	//   - x: The current x-coordinate of the mouse cursor.
@@ -63,21 +80,6 @@ type Mouse interface {
 }
 
 var _ Mouse = (*mouse)(nil) // compile-time check to ensure that mouse implements Mouse
-
-func Init() *mouse {
-	var m mouse
-	m.mu = sync.Mutex{}
-	m.done = nil
-
-	x, y, err := doGetMousePosition()
-	if err != nil {
-		return &m
-	}
-
-	m.x = x
-	m.y = y
-	return &m
-}
 
 func (m *mouse) Click(options ...MouseClickOption) error {
 	clickOptions := &mouseClickOption{}
@@ -118,7 +120,6 @@ func (m *mouse) GetCurrentPosition() (int, int) {
 	return int(m.x), int(m.y)
 }
 
-// Move moves the mouse to the specified coordinates on the given displays.
 func (m *mouse) Move(x, y int32, options ...MouseMoveOption) error {
 	moveOptions := &mouseMoveOption{}
 	for _, opt := range options {
@@ -174,6 +175,20 @@ func (m *mouse) Move(x, y int32, options ...MouseMoveOption) error {
 	}
 }
 
+// moveWithVelocity moves the mouse to the specified coordinates with a parabolic curve and velocity.
+// It uses a quadratic bezier curve for smooth movement and allows for jitter in the velocity.
+// The function takes the target coordinates, velocity, and jitter as parameters, along with the display information.
+// The function calculates the distance to the target coordinates and determines the number of steps needed for the movement based on the velocity and refresh rate.
+//
+// Parameters:
+//   - x: The target x-coordinate to move the mouse to.
+//   - y: The target y-coordinate to move the mouse to.
+//   - velocity: The base velocity for the movement, used to determine the speed of the mouse.
+//   - jitter: The amount of jitter to apply to the velocity, allowing for slight variations in speed.
+//   - disp: The display information, used to determine the refresh rate for the movement.
+//
+// Returns:
+//   - error: An error if the movement fails, otherwise nil.
 func (m *mouse) moveWithVelocity(x, y int32, velocity, jitter int, disp *display.Display) error {
 	startX, startY := m.x, m.y
 	deltaX := float64(x - startX)
