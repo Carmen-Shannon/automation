@@ -81,6 +81,7 @@ func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOptio
 	largeRowSize := ((m.scan.Width*largeBytesPerPixel + 3) / 4) * 4
 	smallRowSize := ((template.Width*smallBytesPerPixel + 3) / 4) * 4
 
+	integralImage := buildIntegralImageSq(largeData, m.scan.Width, m.scan.Height, largeRowSize, largeBytesPerPixel)
 	chunks := chunkBMP(m.scan, template.Width, template.Height)
 
 	numWorkers := tools.Max(runtime.NumCPU()-1, 1)
@@ -108,8 +109,20 @@ func (m *matcher) FindTemplate(template display.BMP, options ...FindBuilderOptio
 	defer m.pool.Stop()
 	defer closeOnce.Do(closeResultChan)
 
+	sumTemplateSq := 0.0
+	for row := range template.Height {
+		smallRowStart := row * smallRowSize
+		for col := range template.Width {
+			smallPixelStart := smallRowStart + col*smallBytesPerPixel
+			smallR := float64(smallData[smallPixelStart])
+			smallG := float64(smallData[smallPixelStart+1])
+			smallB := float64(smallData[smallPixelStart+2])
+			sumTemplateSq += smallR*smallR + smallG*smallG + smallB*smallB
+		}
+	}
+
 	// Submit tasks to the worker pool
-	submitTasks(m.pool, chunkGroups, resultChan, &matchFound, largeData, smallData, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, template.Width, template.Height, fbo.Threshold, ctx)
+	submitTasks(m.pool, chunkGroups, resultChan, &matchFound, largeData, smallData, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, template.Width, template.Height, fbo.Threshold, ctx, sumTemplateSq, integralImage)
 
 	for {
 		select {

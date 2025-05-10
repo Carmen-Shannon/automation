@@ -1,9 +1,9 @@
 package mouse
 
 type mouseClickOption struct {
-	Left bool
-	Right bool
-	Middle bool
+	Left     bool
+	Right    bool
+	Middle   bool
 	Duration int
 }
 

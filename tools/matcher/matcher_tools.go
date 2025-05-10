@@ -26,39 +26,67 @@ type chunk struct {
 //   - largeRowSize, smallRowSize: The row sizes of the larger and smaller BMPs.
 //   - largeBytesPerPixel, smallBytesPerPixel: The bytes per pixel for the larger and smaller BMPs.
 //   - smallWidth, smallHeight: The dimensions of the smaller BMP.
+//   - normed: A boolean indicating whether to use normalized MSE (true) or regular MSE (false).
 //
 // Returns:
 //   - mse: The calculated Mean Squared Error.
-func calculateMSE(largeData, smallData []byte, startX, startY, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, smallWidth, smallHeight int) float64 {
+func calculateMSE(
+	largeData, smallData []byte,
+	startX, startY, largeRowSize, smallRowSize,
+	largeBytesPerPixel, smallBytesPerPixel,
+	smallWidth, smallHeight int,
+	normed bool,
+	sumTemplateSq float64,
+	integralImage [][]float64,
+	mseThreshold float64, // <-- Add this parameter
+) float64 {
 	var totalError float64
-	var pixelCount int
+	pixelCount := smallWidth * smallHeight
+
+	// For normalized, precompute denominator once per window
+	var denom float64
+	if normed {
+		sumPatchSq := getPatchSumSq(integralImage, startX, startY, smallWidth, smallHeight)
+		denom = math.Sqrt(sumTemplateSq * sumPatchSq)
+		const minDenom = 1e-6
+		if denom < minDenom {
+			return 1
+		}
+	}
 
 	for row := 0; row < smallHeight; row++ {
 		largeRowStart := (startY+row)*largeRowSize + startX*largeBytesPerPixel
 		smallRowStart := row * smallRowSize
-
 		for col := 0; col < smallWidth; col++ {
 			largePixelStart := largeRowStart + col*largeBytesPerPixel
 			smallPixelStart := smallRowStart + col*smallBytesPerPixel
-
-			// ker-chow
 			largeR := float64(largeData[largePixelStart])
 			largeG := float64(largeData[largePixelStart+1])
 			largeB := float64(largeData[largePixelStart+2])
 			smallR := float64(smallData[smallPixelStart])
 			smallG := float64(smallData[smallPixelStart+1])
 			smallB := float64(smallData[smallPixelStart+2])
-
 			dr := largeR - smallR
 			dg := largeG - smallG
 			db := largeB - smallB
-
 			totalError += dr*dr + dg*dg + db*db
-			pixelCount++
+
+			if normed {
+				if totalError > mseThreshold*denom {
+					return totalError / denom
+				}
+			} else {
+				if totalError > mseThreshold*float64(pixelCount*3) {
+					return totalError / float64(pixelCount*3)
+				}
+			}
 		}
 	}
 
-	return totalError / float64(pixelCount*3)
+	if !normed {
+		return totalError / float64(pixelCount*3)
+	}
+	return totalError / denom
 }
 
 // chunkBMP divides a larger BMP into dynamically sized chunks based on the size of the smaller BMP.
@@ -70,98 +98,83 @@ func calculateMSE(largeData, smallData []byte, startX, startY, largeRowSize, sma
 // Returns:
 //   - []chunk: A list of chunks with their relative positions.
 func chunkBMP(largeBMP display.BMP, smallWidth, smallHeight int) []chunk {
-	bytesPerPixel := tools.CalcBytesPerPixel(int(largeBMP.InfoHeader.BiBitCount))
-	rowSize := ((largeBMP.Width*bytesPerPixel + 3) / 4) * 4
+    bytesPerPixel := tools.CalcBytesPerPixel(int(largeBMP.InfoHeader.BiBitCount))
+    rowSize := ((largeBMP.Width*bytesPerPixel + 3) / 4) * 4
 
-	// Define chunk dimensions and overlap
-	widthRatio := float64(largeBMP.Width) / float64(smallWidth)
-	heightRatio := float64(largeBMP.Height) / float64(smallHeight)
-	// chunkWidth := tools.Max(tools.Max(largeBMP.Width/25, smallWidth*2), smallWidth)
-	// chunkHeight := tools.Max(tools.Max(largeBMP.Height/25, smallHeight*2), smallHeight)
-	chunkWidth := int(float64(smallWidth) * math.Min(6, math.Max(2, widthRatio/4)))
-	chunkWidth = tools.Min(chunkWidth, largeBMP.Width/3)
-	chunkHeight := int(float64(smallHeight) * math.Min(6, math.Max(2, heightRatio/4)))
-	chunkHeight = tools.Min(chunkHeight, largeBMP.Height/3)
+    widthRatio := float64(largeBMP.Width) / float64(smallWidth)
+    heightRatio := float64(largeBMP.Height) / float64(smallHeight)
 
-	// For very small images, just use the image size
-	if largeBMP.Width < smallWidth*6 {
-		chunkWidth = largeBMP.Width
-	}
-	if largeBMP.Height < smallHeight*6 {
-		chunkHeight = largeBMP.Height
-	}
-	// overlapX := smallWidth + 1
-	// overlapY := smallHeight + 1
-	overlapX := tools.Max(smallWidth-1, int(float64(smallWidth)/math.Max(1.5, widthRatio/8)))
-	overlapY := tools.Max(smallHeight-1, int(float64(smallHeight)/math.Max(1.5, heightRatio/8)))
-	if chunkWidth == largeBMP.Width {
-		overlapX = smallWidth
-	}
-	if chunkHeight == largeBMP.Height {
-		overlapY = smallHeight
-	}
+    chunkWidth := int(float64(smallWidth) * math.Min(6, math.Max(2, widthRatio/4)))
+    chunkWidth = tools.Min(chunkWidth, largeBMP.Width/3)
+    chunkHeight := int(float64(smallHeight) * math.Min(6, math.Max(2, heightRatio/4)))
+    chunkHeight = tools.Min(chunkHeight, largeBMP.Height/3)
 
-	// Estimate the number of chunks for preallocation
-	estimatedChunks := ((largeBMP.Height + chunkHeight - overlapY - 1) / (chunkHeight - overlapY)) *
-		((largeBMP.Width + chunkWidth - overlapX - 1) / (chunkWidth - overlapX))
-	chunks := make([]chunk, 0, estimatedChunks)
+    if largeBMP.Width < smallWidth*6 {
+        chunkWidth = largeBMP.Width
+    }
+    if largeBMP.Height < smallHeight*6 {
+        chunkHeight = largeBMP.Height
+    }
 
-	// Preallocate a buffer for extracting chunk data
-	buffer := make([]byte, chunkWidth*chunkHeight*bytesPerPixel)
+    overlapX := tools.Max(smallWidth-1, int(float64(smallWidth)/math.Max(1.5, widthRatio/8)))
+    overlapY := tools.Max(smallHeight-1, int(float64(smallHeight)/math.Max(1.5, heightRatio/8)))
+    if chunkWidth == largeBMP.Width {
+        overlapX = smallWidth
+    }
+    if chunkHeight == largeBMP.Height {
+        overlapY = smallHeight
+    }
 
-	// Synchronization for parallel processing
-	var mu sync.Mutex
-	var wg sync.WaitGroup
+    estimatedRows := (largeBMP.Height + chunkHeight - overlapY - 1) / (chunkHeight - overlapY)
+    allRowChunks := make([][]chunk, estimatedRows)
 
-	// Parallelize the outer loop (y-axis)
-	for y := 0; y < largeBMP.Height; y += chunkHeight - overlapY {
-		wg.Add(1)
-		go func(y int) {
-			defer wg.Done()
+    var wg sync.WaitGroup
 
-			// Local slice to collect chunks for this row
-			rowChunks := []chunk{}
-			// Iterate over the x-axis
-			for x := 0; x < largeBMP.Width; x += chunkWidth - overlapX {
-				actualChunkWidth := chunkWidth
-				if x+chunkWidth > largeBMP.Width {
-					actualChunkWidth = largeBMP.Width - x
-				}
-				if actualChunkWidth < smallWidth {
-					continue // skip this chunk, too small for template
-				}
+    rowIdx := 0
+    for y := 0; y < largeBMP.Height; y += chunkHeight - overlapY {
+        wg.Add(1)
+        go func(y, rowIdx int) {
+            defer wg.Done()
+            rowChunks := []chunk{}
+            localBuffer := make([]byte, chunkWidth*chunkHeight*bytesPerPixel)
+            for x := 0; x < largeBMP.Width; x += chunkWidth - overlapX {
+                actualChunkWidth := chunkWidth
+                if x+chunkWidth > largeBMP.Width {
+                    actualChunkWidth = largeBMP.Width - x
+                }
+                if actualChunkWidth < smallWidth {
+                    continue
+                }
+                actualChunkHeight := chunkHeight
+                if y+chunkHeight > largeBMP.Height {
+                    actualChunkHeight = largeBMP.Height - y
+                }
+                if actualChunkHeight < smallHeight {
+                    continue
+                }
+                chunkData := extractChunk(largeBMP.Data, x, y, actualChunkWidth, actualChunkHeight, rowSize, bytesPerPixel, localBuffer)
+                chunkCopy := make([]byte, len(chunkData))
+                copy(chunkCopy, chunkData)
+                rowChunks = append(rowChunks, chunk{
+                    Data:   chunkCopy,
+                    X:      x,
+                    Y:      y,
+                    Width:  actualChunkWidth,
+                    Height: actualChunkHeight,
+                })
+            }
+            allRowChunks[rowIdx] = rowChunks
+        }(y, rowIdx)
+        rowIdx++
+    }
+    wg.Wait()
 
-				actualChunkHeight := chunkHeight
-				if y+chunkHeight > largeBMP.Height {
-					actualChunkHeight = largeBMP.Height - y
-				}
-				if actualChunkHeight < smallHeight {
-					continue // skip this chunk, too small for template
-				}
-
-				// Extract chunk data using the preallocated buffer
-				chunkData := extractChunk(largeBMP.Data, x, y, actualChunkWidth, actualChunkHeight, rowSize, bytesPerPixel, buffer)
-
-				// Append the chunk to the local slice
-				rowChunks = append(rowChunks, chunk{
-					Data:   chunkData,
-					X:      x,
-					Y:      y,
-					Width:  actualChunkWidth,
-					Height: actualChunkHeight,
-				})
-			}
-
-			// Append the row's chunks to the global slice
-			mu.Lock()
-			chunks = append(chunks, rowChunks...)
-			mu.Unlock()
-		}(y)
-	}
-
-	// Wait for all goroutines to complete
-	wg.Wait()
-	return chunks
+    // Flatten allRowChunks into a single slice
+    var chunks []chunk
+    for _, rowChunks := range allRowChunks {
+        chunks = append(chunks, rowChunks...)
+    }
+    return chunks
 }
 
 // extractChunk extracts the pixel data for a specific chunk from the larger BMP.
@@ -304,7 +317,7 @@ func splitChunksForWorkers(chunks []chunk, numWorkers int) [][]chunk {
 func submitTasks(pool worker.DynamicWorkerPool, chunkGroups [][]chunk, resultChan chan struct {
 	X int
 	Y int
-}, matchFound *int32, largeData, smallData []byte, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, smallWidth, smallHeight int, mseThreshold float64, ctx context.Context) {
+}, matchFound *int32, largeData, smallData []byte, largeRowSize, smallRowSize, largeBytesPerPixel, smallBytesPerPixel, smallWidth, smallHeight int, mseThreshold float64, ctx context.Context, sumTemplateSq float64, integralImage [][]float64) {
 	for _, chunkGroup := range chunkGroups {
 		chunkGroup := chunkGroup // Capture chunkGroup in the loop
 
@@ -335,7 +348,7 @@ func submitTasks(pool worker.DynamicWorkerPool, chunkGroups [][]chunk, resultCha
 								absoluteX, absoluteY,
 								largeRowSize, smallRowSize,
 								largeBytesPerPixel, smallBytesPerPixel,
-								smallWidth, smallHeight,
+								smallWidth, smallHeight, true, sumTemplateSq, integralImage, mseThreshold,
 							)
 
 							// Early exit if the MSE is significantly below the threshold
@@ -351,24 +364,26 @@ func submitTasks(pool worker.DynamicWorkerPool, chunkGroups [][]chunk, resultCha
 
 							// If the MSE is below the threshold, validate the match
 							if mse <= mseThreshold {
-								validationMSE := calculateMSE(
-									largeData, smallData,
-									absoluteX, absoluteY,
-									largeRowSize, smallRowSize,
-									largeBytesPerPixel, smallBytesPerPixel,
-									smallWidth, smallHeight,
-								)
-
-								if validationMSE <= mseThreshold {
-									if atomic.CompareAndSwapInt32(matchFound, 0, 1) {
-										sendResult(resultChan, struct {
-											X int
-											Y int
-										}{X: absoluteX, Y: absoluteY})
-										return nil, nil
-									}
-								}
-							}
+                                if mse > mseThreshold*0.9 {
+                                    validationMSE := calculateMSE(
+                                        largeData, smallData,
+                                        absoluteX, absoluteY,
+                                        largeRowSize, smallRowSize,
+                                        largeBytesPerPixel, smallBytesPerPixel,
+                                        smallWidth, smallHeight, true, sumTemplateSq, integralImage, mseThreshold,
+                                    )
+                                    if validationMSE > mseThreshold {
+                                        continue
+                                    }
+                                }
+                                if atomic.CompareAndSwapInt32(matchFound, 0, 1) {
+                                    sendResult(resultChan, struct {
+                                        X int
+                                        Y int
+                                    }{X: absoluteX, Y: absoluteY})
+                                    return nil, nil
+                                }
+                            }
 						}
 					}
 				}
@@ -395,4 +410,30 @@ func validateBMPDimensions(largeBMP, smallBMP display.BMP) error {
 		return fmt.Errorf("small BMP dimensions exceed large BMP dimensions")
 	}
 	return nil
+}
+
+// buildIntegralImageSq builds an integral image of squared pixel values for fast patch sum calculation.
+func buildIntegralImageSq(data []byte, width, height, rowSize, bytesPerPixel int) [][]float64 {
+	integral := make([][]float64, height+1)
+	for i := range integral {
+		integral[i] = make([]float64, width+1)
+	}
+	for y := range height {
+		for x := range width {
+			pixelStart := y*rowSize + x*bytesPerPixel
+			r := float64(data[pixelStart])
+			g := float64(data[pixelStart+1])
+			b := float64(data[pixelStart+2])
+			val := r*r + g*g + b*b
+			integral[y+1][x+1] = val + integral[y][x+1] + integral[y+1][x] - integral[y][x]
+		}
+	}
+	return integral
+}
+
+// getPatchSumSq returns the sum of squares for a patch using the integral image.
+func getPatchSumSq(integral [][]float64, x, y, w, h int) float64 {
+	x1, y1 := x, y
+	x2, y2 := x+w, y+h
+	return integral[y2][x2] - integral[y1][x2] - integral[y2][x1] + integral[y1][x1]
 }
