@@ -20,11 +20,12 @@ These are included in all windows builds by default, so no additional setup is r
 - xrandr
 - xwd
 - x11
+- ImageMagick
 
 Run the following apt to get all dependencies for linux:
 
 ```bash
-sudo apt install libx11-dev xdotool x11-xserver-utils x11-utils
+sudo apt install libx11-dev xdotool x11-xserver-utils x11-utils x11-apps ImageMagick
 ```
 
 ## Documentation

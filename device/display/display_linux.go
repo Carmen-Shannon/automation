@@ -4,7 +4,9 @@
 package display
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -51,7 +53,66 @@ func NewVirtualScreen() VirtualScreen {
 }
 
 func (vs *virtualScreen) CaptureBmp(options ...DisplayCaptureOption) ([]BMP, error) {
-	return nil, nil
+	displayCaptureOptions := &displayCaptureOption{}
+	for _, opt := range options {
+		opt(displayCaptureOptions)
+	}
+	// Always output 24bpp, regardless of input or display format
+	displayCaptureOptions.BitCount = 24
+
+	var displays []Display
+	if len(displayCaptureOptions.Displays) == 0 {
+		pd, err := vs.GetPrimaryDisplay()
+		if err != nil {
+			return nil, err
+		}
+		displays = append(displays, pd)
+	} else {
+		displays = displayCaptureOptions.Displays
+	}
+
+	var bitmaps []BMP
+	for _, display := range displays {
+		var left, top, right, bottom int32
+		if displayCaptureOptions.Bounds != [4]int32{} {
+			left = display.X + displayCaptureOptions.Bounds[0]
+			right = display.X + displayCaptureOptions.Bounds[1]
+			top = display.Y + displayCaptureOptions.Bounds[2]
+			bottom = display.Y + displayCaptureOptions.Bounds[3]
+		} else {
+			left = display.X
+			top = display.Y
+			right = display.X + int32(display.Width)
+			bottom = display.Y + int32(display.Height)
+		}
+
+		width := int(right - left)
+		height := int(bottom - top)
+		if width <= 0 || height <= 0 {
+			return nil, fmt.Errorf("invalid capture bounds: width=%d, height=%d", width, height)
+		}
+
+		// Use ImageMagick's import to capture the region as a BMP (24bpp)
+		// -window root: capture the root window
+		// -crop WxH+X+Y: region to capture
+		// bmp3: ensures 24bpp BMP output
+		geometry := fmt.Sprintf("%dx%d+%d+%d", width, height, left, top)
+		cmd := exec.Command("import", "-window", "root", "-crop", geometry, "-depth", "8", "-type", "TrueColor", "-define", "bmp:format=bmp3", "bmp:-")
+		var bmpBuf bytes.Buffer
+		cmd.Stdout = &bmpBuf
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("failed to run import: %w", err)
+		}
+
+		// Parse the BMP data (assuming you have a LoadBmp or similar function)
+		bmp, err := LoadBmp(bmpBuf.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse BMP: %w", err)
+		}
+		bitmaps = append(bitmaps, *bmp)
+	}
+
+	return bitmaps, nil
 }
 
 func (vs *virtualScreen) DetectDisplays() ([]Display, error) {
