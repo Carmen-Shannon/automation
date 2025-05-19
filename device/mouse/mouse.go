@@ -194,13 +194,12 @@ func (m *mouse) moveWithVelocity(x, y int32, velocity, jitter int, disp *display
 	deltaX := float64(x - startX)
 	deltaY := float64(y - startY)
 	distance := math.Sqrt(deltaX*deltaX + deltaY*deltaY)
-	refreshRate := 120.0 // Defaulting to 120 FPS for mouse movement
+	refreshRate := 60.0
 	if disp != nil {
-		refreshRate = math.Max(120.0, float64(disp.RefreshRate))
+		refreshRate = math.Max(refreshRate, float64(disp.RefreshRate))
 	} else if pd != nil {
-		refreshRate = math.Max(120.0, float64(pd.RefreshRate))
+		refreshRate = math.Max(refreshRate, float64(pd.RefreshRate))
 	}
-
 	steps := int(math.Ceil(distance / float64(velocity) * refreshRate)) // Number of steps based on refresh rate
 	stepDuration := time.Second / time.Duration(refreshRate)            // Base time per step
 

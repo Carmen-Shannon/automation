@@ -4,9 +4,31 @@
 package mouse
 
 import (
-	linux "github.com/Carmen-Shannon/automation/tools/_linux"
 	"fmt"
+
+	"github.com/BurntSushi/xgb"
+	"github.com/BurntSushi/xgb/xproto"
+	linux "github.com/Carmen-Shannon/automation/tools/_linux"
 )
+
+var xConn *xgb.Conn
+
+func initXGB() error {
+	var err error
+	xConn, err = xgb.NewConn()
+	return err
+}
+
+func (m *mouse) doMouseMove(x, y int32) error {
+	if xConn == nil {
+		if err := initXGB(); err != nil {
+			return err
+		}
+	}
+	root := xproto.Setup(xConn).DefaultScreen(xConn).Root
+	xproto.WarpPointer(xConn, 0, root, 0, 0, 0, 0, int16(x), int16(y))
+	return nil
+}
 
 func doGetMousePosition() (int32, int32, error) {
 	x, y, err := linux.ExecuteXdotoolGetMousePosition()
@@ -16,26 +38,10 @@ func doGetMousePosition() (int32, int32, error) {
 	return x, y, nil
 }
 
-func (m *mouse) doMouseMove(x, y int32) error {
-	err := linux.ExecuteXdotoolMouseMove(x, y)
-	if err != nil {
-		return fmt.Errorf("failed to move mouse: %w", err)
-	}
-	return nil
-}
-
 func (m *mouse) doMouseClick(btn int, duration int) error {
-	switch btn {
-	case 1:
-	case 2:
-	case 3:
-		err := linux.ExecuteXdotoolClick(btn, duration)
-		if err != nil {
-			return err
-		}
-		return nil
-	default:
-		return fmt.Errorf("invalid button: %d", btn)
+	err := linux.ExecuteXdotoolClick(btn, duration)
+	if err != nil {
+		return err
 	}
 	return nil
 }

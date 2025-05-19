@@ -58,15 +58,20 @@ func ExecuteXdotoolGetMousePosition() (int32, int32, error) {
 
 func ExecuteXdotoolClick(button int, duration int) error {
 	// Simulate the button press
+	if duration == 0 {
+		err := exec.Command("xdotool", "click", fmt.Sprintf("%d", button)).Run()
+		if err != nil {
+			return fmt.Errorf("failed to click mouse button %d: %w", button, err)
+		}
+		return nil
+	}
+	
 	err := exec.Command("xdotool", "mousedown", fmt.Sprintf("%d", button)).Run()
 	if err != nil {
 		return fmt.Errorf("failed to press mouse button %d: %w", button, err)
 	}
 
-	// Add delay if duration is specified
-	if duration > 0 {
-		time.Sleep(time.Duration(duration) * time.Millisecond)
-	}
+	time.Sleep(time.Duration(duration) * time.Millisecond)
 
 	// Simulate the button release
 	err = exec.Command("xdotool", "mouseup", fmt.Sprintf("%d", button)).Run()
